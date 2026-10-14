@@ -442,6 +442,13 @@ PanelWindow {
                         Column {
                             anchors.centerIn: parent
                             spacing: Theme.spacingXS
+                            opacity: memberCell.dragging ? 0.25 : 1
+
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: Theme.shortDuration
+                                }
+                            }
 
                             Item {
                                 id: iconSlot
@@ -495,8 +502,8 @@ PanelWindow {
                             visible: running
                         }
 
-                        // Dock-style gestures: press, hold 500ms then move to drag the app
-                        // out; a plain click activates; right-click pops it back to the dock.
+                        // Drag-out accepts a long-press start or a decisive fast pull; a
+                        // plain click still activates and right-click pops it to the dock.
                         MouseArea {
                             id: memberArea
 
@@ -512,7 +519,8 @@ PanelWindow {
                                 cellLongPress.restart();
                             }
                             onPositionChanged: mouse => {
-                                if (memberCell.longPressing && !memberCell.dragging && Math.hypot(mouse.x - memberCell.dragStartPos.x, mouse.y - memberCell.dragStartPos.y) > 5) {
+                                const pulled = Math.hypot(mouse.x - memberCell.dragStartPos.x, mouse.y - memberCell.dragStartPos.y);
+                                if (!memberCell.dragging && (memberCell.longPressing || pulled > 24)) {
                                     memberCell.dragging = true;
                                     const start = mapToItem(null, mouse.x, mouse.y);
                                     dragGhost.show(start.x, start.y, memberCell.appId, memberCell.entry);
@@ -530,7 +538,7 @@ PanelWindow {
                                     memberCell.longPressing = false;
                                     dragGhost.hide();
                                     const point = mapToItem(null, mouse.x, mouse.y);
-                                    const slot = root.dockApps?.nearestSlotToScreenPoint(point.x, point.y, root.dockApps.targetSize * 0.9) ?? -1;
+                                    const slot = root.dockApps?.nearestSlotToScreenPoint(point.x, point.y, Math.max(56, root.dockApps.targetSize * 0.9)) ?? -1;
                                     if (slot < 0)
                                         return;
                                     root.dockApps?.removeAppFromFolderToSlot(root.folderId, memberCell.appId, slot);
@@ -555,19 +563,6 @@ PanelWindow {
                             }
                         }
 
-                        DWidgets.DActionButton {
-                            anchors.top: parent.top
-                            anchors.right: parent.right
-                            anchors.margins: -Theme.spacingXS
-                            iconName: "close"
-                            iconSize: 12
-                            buttonSize: 20
-                            visible: memberArea.containsMouse && !memberCell.dragging
-                            z: 10
-                            onClicked: {
-                                root.dockApps?.removeAppFromFolderToDock(root.folderId, memberCell.appId);
-                            }
-                        }
                     }
                 }
             }
