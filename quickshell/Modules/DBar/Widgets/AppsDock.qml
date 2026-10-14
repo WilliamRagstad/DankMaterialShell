@@ -61,7 +61,7 @@ BasePill {
     function focusFirst() {
         stripItem?.focusFirst();
     }
-    readonly property bool interactionActive: appMenu.visible || trashMenu.visible || (stripItem?.requestDockShow ?? false) || (stripItem?.draggedIndex ?? -1) >= 0
+    readonly property bool interactionActive: appMenu.visible || trashMenu.visible || folderPopup.visible || (stripItem?.requestDockShow ?? false) || (stripItem?.draggedIndex ?? -1) >= 0
     readonly property var hoveredButton: stripItem?.hoveredButton ?? null
     enableBackgroundHover: false
     enableCursor: false
@@ -82,6 +82,7 @@ BasePill {
             usesOverlayLayer: root.surfaceContext?.host?.usesOverlayLayer ?? false
             contextMenu: appMenu
             trashContextMenu: trashMenu
+            folderPopup: folderPopup
             Component.onCompleted: root.stripItem = apps
         }
     }
@@ -92,5 +93,8 @@ BasePill {
     DockTrashContextMenu {
         id: trashMenu
         options: root.appOptions
+    }
+    DockFolderPopup {
+        id: folderPopup
     }
 }

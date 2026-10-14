@@ -16,7 +16,7 @@ Singleton {
     id: root
     readonly property var log: Log.scoped("SessionData")
 
-    readonly property int sessionConfigVersion: 7
+    readonly property int sessionConfigVersion: 8
 
     readonly property bool isGreeterMode: Quickshell.env("DMS_RUN_GREETER") === "1" || Quickshell.env("DMS_RUN_GREETER") === "true"
 
@@ -252,6 +252,7 @@ Singleton {
     property string themeModeNextTransition: ""
 
     property var dockPins: ({})
+    property var dockFolders: ({})
     property var barPinnedApps: []
     property var hiddenTrayIds: []
     property var trayItemOrder: []
@@ -1437,6 +1438,21 @@ Singleton {
         });
         saveSettings();
     }
+    function getDockFolders(id) {
+        return dockFolders[id] ?? {};
+    }
+    function setDockFolders(id, folders) {
+        dockFolders = Object.assign({}, dockFolders, {
+            [id]: folders
+        });
+        saveSettings();
+    }
+    function removeDockFolders(id) {
+        const next = Object.assign({}, dockFolders);
+        delete next[id];
+        dockFolders = next;
+        saveSettings();
+    }
     function removeDockPins(id) {
         const next = Object.assign({}, dockPins);
         delete next[id];
@@ -1450,6 +1466,36 @@ Singleton {
         for (const id in dockPins)
             next[id] = dockPins[id].filter(pin => pin !== appId);
         dockPins = next;
+        // A globally unpinned app must also leave any folder that still holds it; folders
+        // dropping to one member dissolve into their survivor, matching the strip rule.
+        const nextFolders = {};
+        for (const id in dockFolders) {
+            const folders = dockFolders[id];
+            const pruned = {};
+            const nextPins = (dockPins[id] ?? []).slice();
+            for (const folderId in folders) {
+                const folder = folders[folderId];
+                if (!folder || !Array.isArray(folder.apps))
+                    continue;
+                const apps = folder.apps.filter(app => app !== appId);
+                const token = "folder:" + folderId;
+                const tokenIndex = nextPins.indexOf(token);
+                if (apps.length > 1) {
+                    pruned[folderId] = Object.assign({}, folder, {
+                        apps: apps
+                    });
+                } else if (apps.length === 1 && tokenIndex >= 0) {
+                    nextPins[tokenIndex] = apps[0];
+                } else if (tokenIndex >= 0) {
+                    nextPins.splice(tokenIndex, 1);
+                }
+            }
+            dockPins = Object.assign({}, dockPins, {
+                [id]: nextPins
+            });
+            nextFolders[id] = pruned;
+        }
+        dockFolders = nextFolders;
         saveSettings();
     }
     function setBarPinnedApps(apps) {

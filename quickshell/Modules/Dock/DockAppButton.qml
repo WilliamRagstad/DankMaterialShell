@@ -254,7 +254,9 @@ Item {
             if (didReorder) {
                 const from = originalIndex;
                 const to = dockApps.dropTarget(targetIndex);
-                dockApps.settleDrag(() => dockApps.movePinnedApp(from, to));
+                // Centered release over another pinned icon merges; off-center reorders.
+                const residual = dragAxisOffset - (targetIndex - originalIndex) * (dockApps.targetSize + dockApps.itemSpacing);
+                dockApps.settleDrag(dockApps.resolveDropAction(from, to, residual, dockApps.targetSize + dockApps.itemSpacing));
             }
 
             root.cancelDrag();
