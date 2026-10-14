@@ -20,16 +20,24 @@ FocusScope {
     property int layoutRevision: 0
     property int draggingIndex: -1
     property int targetIndex: -1
+    // Strip slot index where an external drop (folder drag-out) would land; a phantom
+    // slot opens a real gap under the ghost, which move()-based reordering cannot do.
+    property int insertPreviewIndex: -1
     property string draggingUnit: ""
     property string targetUnit: ""
     property real dragOffset: 0
-    readonly property bool dragActive: draggingIndex >= 0 || draggingUnit !== ""
+    readonly property bool dragActive: draggingIndex >= 0 || draggingUnit !== "" || insertPreviewIndex >= 0
     readonly property var sourceOrder: model.map((item, index) => index)
     readonly property var visualOrder: {
         if (draggingUnit !== "")
             return DockConfig.unitOrder(model, draggingUnit, targetUnit);
         if (draggingIndex >= 0)
             return DockConfig.move(sourceOrder, draggingIndex, targetIndex);
+        if (insertPreviewIndex >= 0) {
+            const order = sourceOrder.slice();
+            order.splice(Math.max(0, Math.min(insertPreviewIndex, order.length)), 0, -1);
+            return order;
+        }
         return sourceOrder;
     }
     readonly property var positions: layoutPositions(sourceOrder)
@@ -63,6 +71,11 @@ FocusScope {
         const result = [];
         let offset = startOffset ?? alignOffset;
         for (const index of order) {
+            // The insertion phantom (-1) reserves a full slot so the gap matches a landing app.
+            if (index < 0) {
+                offset += spacing + (allocatedSizes[sourceOrder[insertPreviewIndex]] ?? 0);
+                continue;
+            }
             const scale = scales?.[index] ?? 1.0;
             const extra = scales ? (scale - 1.0) * allocatedSizes[index] * expansionRatio : 0;
             result[index] = offset + extra / 2;
@@ -75,6 +88,7 @@ FocusScope {
     function cancelDrag() {
         draggingIndex = -1;
         targetIndex = -1;
+        insertPreviewIndex = -1;
         draggingUnit = "";
         targetUnit = "";
         dragOffset = 0;

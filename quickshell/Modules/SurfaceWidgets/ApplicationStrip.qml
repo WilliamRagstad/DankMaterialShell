@@ -157,9 +157,18 @@ Item {
         return "f" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
     }
     // Pin strings stay raw while strip items carry substitution-resolved ids; merge ops
-    // must translate back before touching the pin list.
+    // must translate back before touching the pin list. Folder members live outside the
+    // pin list, so their contents are searched too.
     function rawPinFor(appId) {
-        return pinnedApps.find(pin => Paths.moddedAppId(pin) === appId) ?? null;
+        const pin = pinnedApps.find(pin => Paths.moddedAppId(pin) === appId);
+        if (pin !== undefined)
+            return pin;
+        for (const folderId in dockFolders) {
+            const app = (dockFolders[folderId]?.apps ?? []).find(app => Paths.moddedAppId(app) === appId);
+            if (app !== undefined)
+                return app;
+        }
+        return null;
     }
     function createFolderFromPins(srcAppId, dstAppId) {
         if (barHosted)
@@ -231,9 +240,12 @@ Item {
         setPinnedApps(pins);
         SessionData.setDockFolders(surfaceContext.configId, result.folders);
     }
-    // External drag preview (folder modal): open a gap at `slot` with the standard shift
-    // springs by pretending the drag sits one slot before it. -1 clears the preview.
+    // External drag preview (folder modal): open a gap at the slot under the ghost via
+    // SurfaceStrip's insertion preview; draggedIndex >= 0 also keeps the dock revealed
+    // and pauses model rebuilds while the drag is in flight. -1 clears the preview.
     function previewExternalDrop(slot) {
+        if (mixedStrip)
+            mixedStrip.insertPreviewIndex = slot >= 0 ? mixedStrip.appSlot(slot) : -1;
         if (slot < 0) {
             if (draggedIndex >= 0) {
                 draggedIndex = -1;
@@ -241,7 +253,7 @@ Item {
             }
             return;
         }
-        draggedIndex = slot === 0 ? 1 : slot - 1;
+        draggedIndex = slot;
         dropTargetIndex = slot;
     }
     // Folder-modal drag-out drop targeting: nearest rendered strip slot to a screen point.
