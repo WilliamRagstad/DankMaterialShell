@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import qs.Common
+import qs.Services
 import qs.DCommon.Widgets
 import "../../Common/settings/DockConfig.js" as DockConfig
 
@@ -19,16 +20,24 @@ FocusScope {
     property int layoutRevision: 0
     property int draggingIndex: -1
     property int targetIndex: -1
+    // Strip slot index where an external drop (folder drag-out) would land; a phantom
+    // slot opens a real gap under the ghost, which move()-based reordering cannot do.
+    property int insertPreviewIndex: -1
     property string draggingUnit: ""
     property string targetUnit: ""
     property real dragOffset: 0
-    readonly property bool dragActive: draggingIndex >= 0 || draggingUnit !== ""
+    readonly property bool dragActive: draggingIndex >= 0 || draggingUnit !== "" || insertPreviewIndex >= 0
     readonly property var sourceOrder: model.map((item, index) => index)
     readonly property var visualOrder: {
         if (draggingUnit !== "")
             return DockConfig.unitOrder(model, draggingUnit, targetUnit);
         if (draggingIndex >= 0)
             return DockConfig.move(sourceOrder, draggingIndex, targetIndex);
+        if (insertPreviewIndex >= 0) {
+            const order = sourceOrder.slice();
+            order.splice(Math.max(0, Math.min(insertPreviewIndex, order.length)), 0, -1);
+            return order;
+        }
         return sourceOrder;
     }
     readonly property var positions: layoutPositions(sourceOrder)
@@ -62,6 +71,11 @@ FocusScope {
         const result = [];
         let offset = startOffset ?? alignOffset;
         for (const index of order) {
+            // The insertion phantom (-1) reserves a full slot so the gap matches a landing app.
+            if (index < 0) {
+                offset += spacing + (allocatedSizes[sourceOrder[insertPreviewIndex]] ?? 0);
+                continue;
+            }
             const scale = scales?.[index] ?? 1.0;
             const extra = scales ? (scale - 1.0) * allocatedSizes[index] * expansionRatio : 0;
             result[index] = offset + extra / 2;
@@ -74,6 +88,7 @@ FocusScope {
     function cancelDrag() {
         draggingIndex = -1;
         targetIndex = -1;
+        insertPreviewIndex = -1;
         draggingUnit = "";
         targetUnit = "";
         dragOffset = 0;
@@ -245,6 +260,27 @@ FocusScope {
 
     function appSlot(appIndex) {
         return model.findIndex(item => item.widgetId === "application" && item.appIndex === appIndex);
+    }
+
+    // Screen-space nearest application slot; the folder modal's drag-out drop targets this.
+    // Returns the app model index, or -1 when the point is too far from every slot.
+    function nearestAppSlotToScreenPoint(x, y, maxDistance) {
+        let best = -1;
+        let bestDist = maxDistance;
+        for (let i = 0; i < repeater.count; i++) {
+            const slot = repeater.itemAt(i);
+            if (!slot || slot.modelData?.widgetId !== "application" || slot.width <= 0)
+                continue;
+            const point = surfaceContext.screenPoint(slot, slot.width / 2, slot.height / 2);
+            if (!point)
+                continue;
+            const dist = Math.hypot(point.x - x, point.y - y);
+            if (dist < bestDist) {
+                bestDist = dist;
+                best = slot.modelData.appIndex;
+            }
+        }
+        return best;
     }
 
     function contentPosition(item, x, y) {

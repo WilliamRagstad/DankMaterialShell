@@ -226,6 +226,7 @@ Item {
             return;
         dockApps.draggedIndex = -1;
         dockApps.dropTargetIndex = -1;
+        dockApps.mergeTargetIndex = -1;
     }
 
     MouseArea {
@@ -249,12 +250,20 @@ Item {
             longPressTimer.stop();
 
             const wasDragging = dragging;
-            const didReorder = wasDragging && targetIndex >= 0 && dockApps && (targetIndex !== originalIndex || dockApps.mixedDropIndex >= 0);
-
-            if (didReorder) {
-                const from = originalIndex;
-                const to = dockApps.dropTarget(targetIndex);
-                dockApps.settleDrag(() => dockApps.movePinnedApp(from, to));
+            if (wasDragging && dockApps) {
+                const mergeIdx = dockApps.mergeTargetIndex;
+                if (mergeIdx >= 0 && mergeIdx !== index) {
+                    dockApps.settleDrag(() => dockApps.mergePinItems(dockApps.items[index], dockApps.items[mergeIdx]));
+                } else {
+                    const didReorder = targetIndex >= 0 && (targetIndex !== originalIndex || dockApps.mixedDropIndex >= 0);
+                    if (didReorder) {
+                        const from = originalIndex;
+                        const to = dockApps.dropTarget(targetIndex);
+                        // Centered release over another pinned icon merges; off-center reorders.
+                        const residual = dragAxisOffset - (targetIndex - originalIndex) * (dockApps.targetSize + dockApps.itemSpacing);
+                        dockApps.settleDrag(dockApps.resolveDropAction(from, to, residual, dockApps.targetSize + dockApps.itemSpacing));
+                    }
+                }
             }
 
             root.cancelDrag();
@@ -353,6 +362,14 @@ Item {
             const slotOffset = Math.round(axisOffset / (dockApps.targetSize + dockApps.itemSpacing));
             const newTargetIndex = Math.max(0, Math.min(dockApps.pinnedAppCount - 1, originalIndex + slotOffset));
 
+            // Centered hover arms a merge and freezes the shift preview, so the target
+            // icon stays under the dragged one instead of sliding away.
+            const candidate = dockApps.dropCandidate(originalIndex, newTargetIndex, axisOffset - slotOffset * (dockApps.targetSize + dockApps.itemSpacing), dockApps.targetSize + dockApps.itemSpacing);
+            dockApps.mergeTargetIndex = candidate ? newTargetIndex : -1;
+            if (candidate) {
+                dockApps.dropTargetIndex = -1;
+                return;
+            }
             if (newTargetIndex !== targetIndex) {
                 targetIndex = newTargetIndex;
                 dockApps.dropTargetIndex = newTargetIndex;
@@ -439,7 +456,7 @@ Item {
             color: Theme.primarySelected
             border.width: 2
             border.color: Theme.primary
-            visible: dragging
+            visible: dragging || (dockApps?.draggedIndex >= 0 && dockApps?.mergeTargetIndex === index)
             z: -1
         }
 

@@ -60,6 +60,8 @@ Item {
             return trashButton;
         case "overflow-toggle":
             return overflowButton;
+        case "folder":
+            return folderButton;
         default:
             return button;
         }
@@ -68,7 +70,7 @@ Item {
     readonly property bool isOverflowToggle: itemData.type === "overflow-toggle"
     readonly property bool isTrash: itemData.type === "trash"
     readonly property bool isInOverflow: itemData.isInOverflow === true
-    readonly property bool isDragging: button.dragging
+    readonly property bool isDragging: button.dragging || folderButton.dragging
 
     clip: false
     z: isDragging ? 100 : 0
@@ -189,10 +191,24 @@ Item {
         parentDockScreen: strip.dockScreen
     }
 
+    DockFolderButton {
+        id: folderButton
+        options: strip.options
+        visible: itemData.type === "folder"
+        anchors.centerIn: parent
+        width: delegateItem.width
+        height: delegateItem.height
+        actualIconSize: strip.iconSize * (strip.options.iconSizePercentage ?? 100) / 100
+        appData: itemData
+        dockApps: strip
+        index: delegateItem.index
+        parentDockScreen: strip.dockScreen
+    }
+
     DockAppButton {
         id: button
         options: strip.options
-        visible: !isOverflowToggle && itemData.type !== "separator" && itemData.type !== "launcher" && itemData.type !== "trash"
+        visible: !isOverflowToggle && itemData.type !== "separator" && itemData.type !== "launcher" && itemData.type !== "trash" && itemData.type !== "folder"
         anchors.centerIn: parent
         width: delegateItem.width
         height: delegateItem.height

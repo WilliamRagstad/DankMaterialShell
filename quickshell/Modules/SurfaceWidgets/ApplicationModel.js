@@ -49,6 +49,131 @@ function overflow(items, maxPinned, maxRunning) {
     return { items: result, count: hidden.size };
 }
 
+// Folders ride the pin list as opaque tokens ("folder:<id>") so every ordering path
+// (unitList, movePin, reorderPins) treats them like any other pin. Contents live in a
+// parallel dockFolders map of {id, name, apps}.
+var FOLDER_PREFIX = "folder:";
+
+function folderToken(folderId) {
+    return FOLDER_PREFIX + folderId;
+}
+
+function parseFolderToken(pin) {
+    return typeof pin === "string" && pin.startsWith(FOLDER_PREFIX) ? pin.slice(FOLDER_PREFIX.length) : null;
+}
+
+function isFolderToken(pin) {
+    return parseFolderToken(pin) !== null;
+}
+
+// Drop lands on the target icon itself when the residual offset inside the slot is small;
+// a centered drop at the next slot boundary is also a perfect overlap. Otherwise it is a reorder.
+function dropMode(residual, slotPitch) {
+    return Math.abs(residual) < 0.35 * slotPitch ? "merge" : "move";
+}
+
+// Strip slot -> pin list insertion point: pinned strip items map 1:1 onto the pin list order.
+function pinInsertIndex(items, slotIndex) {
+    let count = 0;
+    for (let i = 0; i < items.length && i < slotIndex; i++) {
+        if (items[i].isPinned && items[i].type !== "launcher")
+            count++;
+    }
+    return count;
+}
+
+function createFolder(pins, folders, srcAppId, dstAppId, folderId) {
+    if (!srcAppId || !dstAppId || srcAppId === dstAppId)
+        return null;
+    const dstIndex = pins.indexOf(dstAppId);
+    const srcIndex = pins.indexOf(srcAppId);
+    if (dstIndex < 0 || srcIndex < 0)
+        return null;
+    const nextPins = pins.filter(pin => pin !== srcAppId && pin !== dstAppId);
+    const insertAt = dstIndex < srcIndex ? dstIndex : dstIndex - 1;
+    nextPins.splice(Math.max(0, insertAt), 0, folderToken(folderId));
+    return {
+        pins: nextPins,
+        folders: Object.assign({}, folders, {
+            [folderId]: { id: folderId, name: "", apps: [dstAppId, srcAppId], columns: 3 }
+        })
+    };
+}
+
+function addToFolder(pins, folders, folderId, appId) {
+    const folder = folders[folderId];
+    if (!folder || !appId || !pins.includes(appId))
+        return null;
+    return {
+        pins: pins.filter(pin => pin !== appId),
+        folders: Object.assign({}, folders, {
+            [folderId]: Object.assign({}, folder, { apps: folder.apps.concat([appId]) })
+        })
+    };
+}
+
+// Removing the second-to-last app dissolves the folder: the token is replaced by the remaining
+// app (or nothing), so the last member reappears as a normal pin at the folder's position.
+function removeFromFolder(pins, folders, folderId, appId) {
+    const folder = folders[folderId];
+    if (!folder || !folder.apps.includes(appId))
+        return null;
+    const remaining = folder.apps.filter(app => app !== appId);
+    const nextFolders = Object.assign({}, folders);
+    const token = folderToken(folderId);
+    const tokenIndex = pins.indexOf(token);
+    if (remaining.length > 1) {
+        nextFolders[folderId] = Object.assign({}, folder, { apps: remaining });
+        return { pins, folders: nextFolders, dissolved: false };
+    }
+    delete nextFolders[folderId];
+    const nextPins = pins.slice();
+    if (remaining.length === 1 && tokenIndex >= 0)
+        nextPins[tokenIndex] = remaining[0];
+    else
+        nextPins.splice(tokenIndex >= 0 ? tokenIndex : nextPins.length, tokenIndex >= 0 ? 1 : 0);
+    return { pins: nextPins, folders: nextFolders, dissolved: true };
+}
+
+function updateFolder(folders, folderId, patch) {
+    const folder = folders[folderId];
+    if (!folder)
+        return null;
+    return Object.assign({}, folders, {
+        [folderId]: Object.assign({}, folder, patch)
+    });
+}
+
+function renameFolder(folders, folderId, name) {
+    return updateFolder(folders, folderId, { name });
+}
+
+// Dissolve spreads every member back into the pin list at the folder's position.
+function dissolveFolder(pins, folders, folderId) {
+    const folder = folders[folderId];
+    if (!folder)
+        return null;
+    const token = folderToken(folderId);
+    const tokenIndex = pins.indexOf(token);
+    if (tokenIndex < 0)
+        return null;
+    const nextPins = pins.slice();
+    nextPins.splice(tokenIndex, 1, ...folder.apps);
+    const nextFolders = Object.assign({}, folders);
+    delete nextFolders[folderId];
+    return { pins: nextPins, folders: nextFolders };
+}
+
+function nextFolderName(folders) {
+    let max = 0;
+    for (const id in folders) {
+        const match = /^Folder (\d+)$/.exec(folders[id].name || "");
+        if (match)
+            max = Math.max(max, Number(match[1]));
+    }
+    return "Folder " + (max + 1);
+}
+
 function movePin(pins, items, from, to) {
     const source = items[from];
     const target = items[to];

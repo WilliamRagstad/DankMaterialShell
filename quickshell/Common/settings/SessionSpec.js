@@ -150,6 +150,9 @@ var LOCAL_SPEC = {
     dockPins: {
         def: {}
     },
+    dockFolders: {
+        def: {}
+    },
     barPinnedApps: {
         def: []
     },

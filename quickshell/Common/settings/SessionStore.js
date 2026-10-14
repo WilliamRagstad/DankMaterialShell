@@ -137,5 +137,10 @@ function migrateToVersion(obj, targetVersion, settingsData) {
             session.trayItemOrder = stripTrayKeys(session.trayItemOrder);
         session.configVersion = 7;
     }
+
+    if (currentVersion < 8) {
+        session.dockFolders = session.dockFolders || {};
+        session.configVersion = 8;
+    }
     return session;
 }

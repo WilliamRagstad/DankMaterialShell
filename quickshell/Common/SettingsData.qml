@@ -2402,6 +2402,7 @@ Singleton {
     function removeDockConfig(id) {
         dockConfigs = dockConfigs.filter(config => config.id !== id);
         SessionData.removeDockPins(id);
+        SessionData.removeDockFolders(id);
         saveSettings();
     }
     function updateDockWidget(id, instanceId, updates) {
