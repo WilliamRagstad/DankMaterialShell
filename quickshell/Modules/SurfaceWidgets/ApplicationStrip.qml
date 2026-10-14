@@ -214,7 +214,7 @@ Item {
         if (barHosted)
             return;
         const raw = rawPinFor(appId);
-        _dragLog.debug("removeToSlot", folderId, appId, "slot", slotIndex, "raw:", raw);
+        _dragLog.info("removeToSlot", folderId, appId, "slot", slotIndex, "raw:", raw);
         if (!raw)
             return;
         const result = ApplicationModel.removeFromFolder(pinnedApps, dockFolders, folderId, raw);
@@ -266,9 +266,9 @@ Item {
             }
         }
         if (best < 0)
-            _dragLog.debug("slot search miss", "mapped:", mapped, "at", Math.round(x), Math.round(y), "maxDist", Math.round(maxDistance));
+            _dragLog.info("slot search miss", "mapped:", mapped, "at", Math.round(x), Math.round(y), "maxDist", Math.round(maxDistance));
         else
-            _dragLog.debug("slot hit", best, "dist", Math.round(bestDist));
+            _dragLog.info("slot hit", best, "dist", Math.round(bestDist));
         return best;
     }
     function renameFolder(folderId, name) {
