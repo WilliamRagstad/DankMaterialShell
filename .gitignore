@@ -132,3 +132,6 @@ distro/void/masterdir*/
 core/dms
 
 core/internal/shellembed/dist
+
+# Local LLM planning artifacts
+/llm/
