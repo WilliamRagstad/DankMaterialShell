@@ -230,6 +230,19 @@ Item {
         setPinnedApps(pins);
         SessionData.setDockFolders(surfaceContext.configId, result.folders);
     }
+    // External drag preview (folder modal): open a gap at `slot` with the standard shift
+    // springs by pretending the drag sits one slot before it. -1 clears the preview.
+    function previewExternalDrop(slot) {
+        if (slot < 0) {
+            if (draggedIndex >= 0) {
+                draggedIndex = -1;
+                dropTargetIndex = -1;
+            }
+            return;
+        }
+        draggedIndex = slot === 0 ? 1 : slot - 1;
+        dropTargetIndex = slot;
+    }
     // Folder-modal drag-out drop targeting: nearest rendered strip slot to a screen point.
     function nearestSlotToScreenPoint(x, y, maxDistance) {
         let best = -1;

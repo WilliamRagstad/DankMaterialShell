@@ -530,6 +530,9 @@ PanelWindow {
                                 cellLongPress.stop();
                                 const point = mapToItem(null, mouse.x, mouse.y);
                                 dragGhost.move(point.x, point.y);
+                                // Dock items part under the ghost with the standard shift springs.
+                                const slot = root.dockApps?.nearestSlotToScreenPoint(point.x, point.y, Math.max(56, root.dockApps.targetSize * 0.9)) ?? -1;
+                                root.dockApps?.previewExternalDrop(slot);
                             }
                             onReleased: mouse => {
                                 cellLongPress.stop();
@@ -539,6 +542,7 @@ PanelWindow {
                                     dragGhost.hide();
                                     const point = mapToItem(null, mouse.x, mouse.y);
                                     const slot = root.dockApps?.nearestSlotToScreenPoint(point.x, point.y, Math.max(56, root.dockApps.targetSize * 0.9)) ?? -1;
+                                    root.dockApps?.previewExternalDrop(-1);
                                     if (slot < 0)
                                         return;
                                     root.dockApps?.removeAppFromFolderToSlot(root.folderId, memberCell.appId, slot);
@@ -554,6 +558,7 @@ PanelWindow {
                                 memberCell.dragging = false;
                                 memberCell.longPressing = false;
                                 dragGhost.hide();
+                                root.dockApps?.previewExternalDrop(-1);
                             }
                             onClicked: mouse => {
                                 if (mouse.button === Qt.RightButton) {
