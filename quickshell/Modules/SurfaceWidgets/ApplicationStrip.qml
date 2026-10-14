@@ -294,6 +294,7 @@ Item {
                 folderId: folderId,
                 folderName: folder.name || I18n.tr("Folder"),
                 folderApps: folder.apps || [],
+                columns: folder.columns ?? 3,
                 toplevel: null,
                 isPinned: true,
                 isRunning: windows.length > 0,

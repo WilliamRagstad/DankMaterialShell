@@ -293,30 +293,50 @@ PanelWindow {
                     }
                 }
 
-                // onIncrement/onDecrement are plain var callbacks: they must hold functions,
-                // not evaluated calls, or the stepper buttons stay disabled forever.
-                Item {
+                Row {
                     width: parent.width
-                    height: Theme.iconSize + Theme.spacingM
+                    spacing: Theme.spacingS
 
                     StyledText {
-                        anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
                         text: I18n.tr("Grid columns")
                         color: Theme.surfaceText
                         font.pixelSize: Theme.fontSizeSmall
                     }
 
-                    DWidgets.DNumberStepper {
-                        anchors.right: parent.right
+                    Item {
+                        width: parent.width - parent.spacing * 3 - columnsValue.implicitWidth
+                        height: parent.height
+                    }
+
+                    DWidgets.DActionButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        iconName: "remove"
+                        iconSize: 16
+                        buttonSize: Theme.iconSize - 4
+                        enabled: root.columns > 2
+                        Accessible.name: I18n.tr("Fewer columns")
+                        onClicked: root.dockApps?.setFolderColumns(root.folderId, root.columns - 1)
+                    }
+
+                    StyledText {
+                        id: columnsValue
+
                         anchors.verticalCenter: parent.verticalCenter
                         text: String(root.columns)
-                        incrementIconName: "add"
-                        decrementIconName: "remove"
-                        incrementEnabled: root.columns < 6
-                        decrementEnabled: root.columns > 2
-                        onIncrement: () => root.dockApps?.setFolderColumns(root.folderId, root.columns + 1)
-                        onDecrement: () => root.dockApps?.setFolderColumns(root.folderId, root.columns - 1)
+                        isMonospace: true
+                        color: Theme.surfaceText
+                        font.pixelSize: Theme.fontSizeSmall
+                    }
+
+                    DWidgets.DActionButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        iconName: "add"
+                        iconSize: 16
+                        buttonSize: Theme.iconSize - 4
+                        enabled: root.columns < 6
+                        Accessible.name: I18n.tr("More columns")
+                        onClicked: root.dockApps?.setFolderColumns(root.folderId, root.columns + 1)
                     }
                 }
 
