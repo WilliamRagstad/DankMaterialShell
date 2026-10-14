@@ -511,8 +511,8 @@ PanelWindow {
                             visible: running
                         }
 
-                        // Drag-out accepts a long-press start or a decisive fast pull; a
-                        // plain click still activates and right-click pops it to the dock.
+                        // A drag only starts after a real hold (500ms) plus a clear pull;
+                        // every click, however long, simply opens the app.
                         MouseArea {
                             id: memberArea
 
@@ -520,7 +520,7 @@ PanelWindow {
                             hoverEnabled: true
                             cursorShape: memberCell.dragging ? Qt.DragMoveCursor : Qt.PointingHandCursor
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
-                            preventStealing: memberCell.dragging || memberCell.longPressing
+                            preventStealing: memberCell.dragging
                             onPressed: mouse => {
                                 if (mouse.button !== Qt.LeftButton)
                                     return;
@@ -528,14 +528,13 @@ PanelWindow {
                                 cellLongPress.restart();
                             }
                             onPositionChanged: mouse => {
-                                const pulled = Math.hypot(mouse.x - memberCell.dragStartPos.x, mouse.y - memberCell.dragStartPos.y);
-                                if (!memberCell.dragging && (memberCell.longPressing || pulled > 24)) {
+                                if (!memberCell.dragging) {
+                                    if (!memberCell.longPressing || Math.hypot(mouse.x - memberCell.dragStartPos.x, mouse.y - memberCell.dragStartPos.y) <= 10)
+                                        return;
                                     memberCell.dragging = true;
                                     const start = mapToItem(null, mouse.x, mouse.y);
                                     dragGhost.show(start.x, start.y, memberCell.appId, memberCell.entry);
                                 }
-                                if (!memberCell.dragging)
-                                    return;
                                 cellLongPress.stop();
                                 const point = mapToItem(null, mouse.x, mouse.y);
                                 dragGhost.move(point.x, point.y);
@@ -545,10 +544,11 @@ PanelWindow {
                             }
                             onReleased: mouse => {
                                 cellLongPress.stop();
-                                if (memberCell.dragging) {
-                                    memberCell.dragging = false;
-                                    memberCell.longPressing = false;
-                                    dragGhost.hide();
+                                const wasDragging = memberCell.dragging;
+                                memberCell.dragging = false;
+                                memberCell.longPressing = false;
+                                dragGhost.hide();
+                                if (wasDragging) {
                                     const point = mapToItem(null, mouse.x, mouse.y);
                                     const slot = root.dockApps?.nearestSlotToScreenPoint(point.x, point.y, Math.max(56, root.dockApps.targetSize * 0.9)) ?? -1;
                                     root.dockApps?.previewExternalDrop(-1);
@@ -558,7 +558,6 @@ PanelWindow {
                                     root.close();
                                     return;
                                 }
-                                memberCell.longPressing = false;
                                 if (mouse.button === Qt.LeftButton)
                                     root.activateMember(memberCell.appId);
                             }
