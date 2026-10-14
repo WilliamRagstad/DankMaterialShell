@@ -84,6 +84,7 @@ Item {
         apply();
         draggedIndex = -1;
         dropTargetIndex = -1;
+        mergeTargetIndex = -1;
         modelUpdate.schedule();
         modelUpdate.flush();
         Qt.callLater(() => root.suppressShiftAnimation = false);
@@ -105,6 +106,9 @@ Item {
     property bool usesOverlayLayer: false
     property int draggedIndex: -1
     property int dropTargetIndex: -1
+    // Armed while a drag hovers centered on a merge target; suppresses the reorder
+    // shift preview so the hovered icon stays put under the dragged one.
+    property int mergeTargetIndex: -1
     property bool suppressShiftAnimation: false
     property int maxVisibleApps: root.options.maxVisibleApps
     property int maxVisibleRunningApps: root.options.maxVisibleRunningApps
@@ -185,43 +189,20 @@ Item {
         setPinnedApps(result.pins);
         SessionData.setDockFolders(surfaceContext.configId, result.folders);
     }
-    function removeAppFromFolder(folderId, appId) {
-        if (barHosted)
-            return;
-        const result = ApplicationModel.removeFromFolder(pinnedApps, dockFolders, folderId, appId);
-        if (!result)
-            return;
-        setPinnedApps(result.pins);
-        SessionData.setDockFolders(surfaceContext.configId, result.folders);
-    }
-    // Right-click on the folder icon: drop the token and its contents together.
-    function removeFolder(folderId) {
-        if (barHosted || !folderId)
-            return;
-        const folders = Object.assign({}, dockFolders);
-        delete folders[folderId];
-        setPinnedApps(pinnedApps.filter(pin => pin !== ApplicationModel.folderToken(folderId)));
-        SessionData.setDockFolders(surfaceContext.configId, folders);
-    }
-    // Folder-modal drag-out: remove from the folder and re-pin at a strip slot in one
-    // settle. The insert index is corrected against the post-removal pin list, because
-    // a dissolved folder token shifts pin positions.
-    function removeAppFromFolderToSlot(folderId, appId, slotIndex) {
+    // "Remove from folder": the app returns to the dock as a normal pin right beside
+    // the folder (or at its slot after a dissolve).
+    function removeAppFromFolderToDock(folderId, appId) {
         if (barHosted)
             return;
         const raw = rawPinFor(appId);
         if (!raw)
             return;
+        const tokenIndex = pinnedApps.indexOf(ApplicationModel.folderToken(folderId));
         const result = ApplicationModel.removeFromFolder(pinnedApps, dockFolders, folderId, raw);
-        if (!result)
+        if (!result || result.pins.includes(raw))
             return;
-        let insertAt = ApplicationModel.pinInsertIndex(items, slotIndex);
-        const tokenIndexPre = pinnedApps.indexOf(ApplicationModel.folderToken(folderId));
-        if (tokenIndexPre >= 0 && tokenIndexPre < insertAt && result.pins.length === pinnedApps.length - 1)
-            insertAt--;
         const pins = result.pins.slice();
-        if (pins.includes(raw))
-            return;
+        const insertAt = tokenIndex >= 0 ? tokenIndex + (result.dissolved ? 0 : 1) : pins.length;
         pins.splice(Math.max(0, Math.min(insertAt, pins.length)), 0, raw);
         setPinnedApps(pins);
         SessionData.setDockFolders(surfaceContext.configId, result.folders);
@@ -233,32 +214,6 @@ Item {
         if (folders)
             SessionData.setDockFolders(surfaceContext.configId, folders);
     }
-    function insertPinAtSlot(appId, slotIndex) {
-        if (barHosted || !appId || isPinnedApp(appId))
-            return;
-        const pins = pinnedApps.slice();
-        pins.splice(Math.min(ApplicationModel.pinInsertIndex(items, slotIndex), pins.length), 0, appId);
-        setPinnedApps(pins);
-    }
-    // Folder-modal drag-out drop targeting: nearest rendered strip slot to a screen point.
-    function nearestSlotToScreenPoint(x, y, maxDistance) {
-        let best = -1;
-        let bestDist = maxDistance;
-        for (let i = 0; i < repeater.count; i++) {
-            const item = repeater.itemAt(i);
-            if (!item || item.width <= 0)
-                continue;
-            const point = surfaceContext.screenPoint(item, item.width / 2, item.height / 2);
-            if (!point)
-                continue;
-            const dist = Math.hypot(point.x - x, point.y - y);
-            if (dist < bestDist) {
-                bestDist = dist;
-                best = i;
-            }
-        }
-        return best;
-    }
     // A pin drag either reorders (off-center release) or merges onto the icon it covers
     // (centered release). The strip owns the decision; buttons only report geometry.
     function resolveDropAction(from, to, residual, slotPitch) {
@@ -267,6 +222,14 @@ Item {
         if (ApplicationModel.dropMode(residual, slotPitch) === "merge" && from !== to && canMergePinItems(source, target))
             return () => mergePinItems(source, target);
         return () => movePinnedApp(from, to);
+    }
+    // Live merge candidate for the drag preview; null while a plain reorder applies.
+    function dropCandidate(from, to, residual, slotPitch) {
+        const source = items[from];
+        const target = items[to];
+        if (ApplicationModel.dropMode(residual, slotPitch) === "merge" && from !== to && canMergePinItems(source, target))
+            return target;
+        return null;
     }
     function canMergePinItems(source, target) {
         if (barHosted || !source?.isPinned || !target?.isPinned)

@@ -266,8 +266,6 @@ PanelWindow {
                         readonly property string appId: modelData
                         readonly property var entry: DesktopEntries.heuristicLookup(Paths.moddedAppId(appId))
                         readonly property bool running: root.memberToplevels(appId).length > 0
-                        property bool cellDragging: false
-                        property point dragStartPos: Qt.point(0, 0)
 
                         width: root.cellWidth
                         height: root.cellWidth * 0.5 + Theme.fontSizeSmall + Theme.spacingXS + Theme.spacingS
@@ -299,7 +297,6 @@ PanelWindow {
                                     smooth: true
                                     asynchronous: true
                                     visible: status === Image.Ready
-                                    opacity: memberCell.cellDragging ? 0.3 : 1
                                 }
 
                                 DWidgets.DIcon {
@@ -308,7 +305,6 @@ PanelWindow {
                                     name: "extension"
                                     color: Theme.surfaceText
                                     visible: !memberIcon.visible
-                                    opacity: memberCell.cellDragging ? 0.3 : 1
                                 }
                             }
 
@@ -343,72 +339,28 @@ PanelWindow {
                             iconName: "close"
                             iconSize: 12
                             buttonSize: 20
-                            visible: memberArea.containsMouse && !memberCell.cellDragging
+                            visible: memberArea.containsMouse
                             onClicked: {
-                                root.dockApps?.removeAppFromFolder(root.folderId, memberCell.appId);
+                                root.dockApps?.removeAppFromFolderToDock(root.folderId, memberCell.appId);
                             }
                         }
 
-                        Timer {
-                            id: longPressTimer
-
-                            interval: 500
-                            repeat: false
-                            onTriggered: memberCell.cellDragging = true
-                        }
-
+                        // Cells behave like dock buttons: click activates, right-click
+                        // pops the app back out to the dock. No drag gestures in the grid.
                         MouseArea {
                             id: memberArea
 
                             anchors.fill: parent
                             hoverEnabled: true
-                            cursorShape: memberCell.cellDragging ? Qt.DragMoveCursor : Qt.PointingHandCursor
+                            cursorShape: Qt.PointingHandCursor
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
-                            preventStealing: memberCell.cellDragging
-                            onPressed: mouse => {
-                                if (mouse.button !== Qt.LeftButton)
-                                    return;
-                                dragStartPos = Qt.point(mouse.x, mouse.y);
-                                longPressTimer.restart();
-                            }
-                            onPositionChanged: mouse => {
-                                if (!memberCell.cellDragging) {
-                                    if (Math.hypot(mouse.x - dragStartPos.x, mouse.y - dragStartPos.y) > 10) {
-                                        longPressTimer.stop();
-                                        memberCell.cellDragging = true;
-                                    }
-                                }
-                                if (!memberCell.cellDragging)
-                                    return;
-                                // mapToItem(null) yields window-content coordinates, and this
-                                // full-screen window's content matches screen coordinates.
-                                const point = mapToItem(null, mouse.x, mouse.y);
-                                dragGhost.show(point.x, point.y, memberCell.appId, memberCell.entry);
-                            }
-                            onReleased: mouse => {
-                                longPressTimer.stop();
-                                if (memberCell.cellDragging) {
-                                    memberCell.cellDragging = false;
-                                    dragGhost.hide();
-                                    const point = mapToItem(null, mouse.x, mouse.y);
-                                    const slot = root.dockApps?.nearestSlotToScreenPoint(point.x, point.y, root.dockApps.targetSize * 0.9) ?? -1;
-                                    if (slot < 0)
-                                        return;
-                                    root.dockApps?.removeAppFromFolderToSlot(root.folderId, memberCell.appId, slot);
-                                    root.close();
-                                    return;
-                                }
-                                if (mouse.button === Qt.LeftButton)
-                                    root.activateMember(memberCell.appId);
-                            }
-                            onCanceled: {
-                                longPressTimer.stop();
-                                memberCell.cellDragging = false;
-                                dragGhost.hide();
-                            }
                             onClicked: mouse => {
+                                if (mouse.button === Qt.LeftButton) {
+                                    root.activateMember(memberCell.appId);
+                                    return;
+                                }
                                 if (mouse.button === Qt.RightButton) {
-                                    root.dockApps?.removeAppFromFolder(root.folderId, memberCell.appId);
+                                    root.dockApps?.removeAppFromFolderToDock(root.folderId, memberCell.appId);
                                     root.close();
                                 }
                             }
@@ -416,43 +368,6 @@ PanelWindow {
                     }
                 }
             }
-        }
-    }
-
-    // Drag ghost lives beside the menu column so Column layout never reflows around it.
-    Item {
-        id: dragGhost
-
-        visible: false
-        width: 44
-        height: 44
-        z: 100
-
-        function show(x, y, appId, entry) {
-            ghostIcon.source = Paths.getAppIcon(Paths.moddedAppId(appId), entry);
-            dragGhost.x = x - dragGhost.width / 2;
-            dragGhost.y = y - dragGhost.height / 2;
-            dragGhost.visible = true;
-        }
-        function hide() {
-            dragGhost.visible = false;
-        }
-
-        Rectangle {
-            anchors.fill: parent
-            radius: Theme.cornerRadius
-            color: Theme.primarySelected
-            border.width: 1
-            border.color: Theme.primary
-        }
-
-        IconImage {
-            id: ghostIcon
-
-            anchors.centerIn: parent
-            implicitSize: 36
-            mipmap: true
-            smooth: true
         }
     }
 
