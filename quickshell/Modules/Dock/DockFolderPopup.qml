@@ -24,6 +24,11 @@ PanelWindow {
     property real menuMaxWidth: 400
     property real menuMinWidth: 340
 
+    property point anchorPos: Qt.point(screen ? screen.width / 2 : 0, screen ? screen.height - 100 : 0)
+    property var anchorItem: null
+    property var surfaceContext: null
+    property real dockVisibleHeight: 40
+
     WlrLayershell.namespace: root.layerNamespace
     WlrLayershell.layer: WlrLayershell.Overlay
     WlrLayershell.exclusiveZone: -1
@@ -224,6 +229,7 @@ PanelWindow {
 
                 width: parent.width
                 placeholderText: I18n.tr("Folder name")
+                Keys.onEscapePressed: root.close()
                 onAccepted: {
                     if (root.folderId)
                         root.dockApps?.renameFolder(root.folderId, renameField.text);
@@ -388,8 +394,8 @@ PanelWindow {
                                     const slot = root.dockApps?.nearestSlotToScreenPoint(point.x, point.y, root.dockApps.targetSize * 0.9) ?? -1;
                                     if (slot < 0)
                                         return;
-                                    root.dockApps?.removeAppFromFolder(root.folderId, memberCell.appId);
-                                    root.dockApps?.insertPinAtSlot(memberCell.appId, slot);
+                                    root.dockApps?.removeAppFromFolderToSlot(root.folderId, memberCell.appId, slot);
+                                    root.close();
                                     return;
                                 }
                                 if (mouse.button === Qt.LeftButton)

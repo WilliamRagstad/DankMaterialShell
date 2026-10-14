@@ -79,9 +79,11 @@ Item {
             }
         }
         onCanceled: root.cancelDrag()
+        // Right-click matches left-click: open the folder. Destructive actions stay
+        // inside the popup, where removal is per-member and dissolves are gradual.
         onClicked: mouse => {
             if (mouse.button === Qt.RightButton)
-                dockApps?.removeFolder(appData?.folderId ?? "");
+                dockApps?.openFolderPopup(root, appData?.folderId ?? "");
         }
 
         onReleased: mouse => {

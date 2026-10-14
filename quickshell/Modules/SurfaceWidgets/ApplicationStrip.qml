@@ -203,6 +203,29 @@ Item {
         setPinnedApps(pinnedApps.filter(pin => pin !== ApplicationModel.folderToken(folderId)));
         SessionData.setDockFolders(surfaceContext.configId, folders);
     }
+    // Folder-modal drag-out: remove from the folder and re-pin at a strip slot in one
+    // settle. The insert index is corrected against the post-removal pin list, because
+    // a dissolved folder token shifts pin positions.
+    function removeAppFromFolderToSlot(folderId, appId, slotIndex) {
+        if (barHosted)
+            return;
+        const raw = rawPinFor(appId);
+        if (!raw)
+            return;
+        const result = ApplicationModel.removeFromFolder(pinnedApps, dockFolders, folderId, raw);
+        if (!result)
+            return;
+        let insertAt = ApplicationModel.pinInsertIndex(items, slotIndex);
+        const tokenIndexPre = pinnedApps.indexOf(ApplicationModel.folderToken(folderId));
+        if (tokenIndexPre >= 0 && tokenIndexPre < insertAt && result.pins.length === pinnedApps.length - 1)
+            insertAt--;
+        const pins = result.pins.slice();
+        if (pins.includes(raw))
+            return;
+        pins.splice(Math.max(0, Math.min(insertAt, pins.length)), 0, raw);
+        setPinnedApps(pins);
+        SessionData.setDockFolders(surfaceContext.configId, result.folders);
+    }
     function renameFolder(folderId, name) {
         if (barHosted)
             return;

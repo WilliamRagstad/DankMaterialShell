@@ -1477,6 +1477,10 @@ Singleton {
                 const folder = folders[folderId];
                 if (!folder || !Array.isArray(folder.apps))
                     continue;
+                if (!folder.apps.includes(appId)) {
+                    pruned[folderId] = folder;
+                    continue;
+                }
                 const apps = folder.apps.filter(app => app !== appId);
                 const token = "folder:" + folderId;
                 const tokenIndex = nextPins.indexOf(token);
