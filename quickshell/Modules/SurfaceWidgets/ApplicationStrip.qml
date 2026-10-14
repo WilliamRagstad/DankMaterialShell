@@ -248,14 +248,13 @@ Item {
     // TEMP debug: remove after drag-out investigation.
     property var _dragLog: Log.scoped("DockFolders")
     function nearestSlotToScreenPoint(x, y, maxDistance) {
+        // Dock strips render app items through their SurfaceStrip host (renderItems is
+        // false there), so slot geometry lives on the mixed strip; bar strips keep the
+        // local repeater.
+        if (mixedStrip?.nearestAppSlotToScreenPoint)
+            return mixedStrip.nearestAppSlotToScreenPoint(x, y, maxDistance);
         let best = -1;
         let bestDist = maxDistance;
-        let mapped = 0;
-        if (repeater.count > 0 && best < 0 && _dragProbe.pending === false) {
-            const first = repeater.itemAt(0);
-            _dragLog.info("probe", "repeaterCount:", repeater.count, "surfaceCtx:", surfaceContext !== null, "ctxScreen:", surfaceContext?.screen?.name ?? "null", "hostKind:", surfaceContext?.kind ?? "null", "firstItemWindow:", first ? (first.Window?.window ?? "null") : "no-item", "ctxThickness:", surfaceContext?.thickness);
-            _dragProbe.pending = true;
-        }
         for (let i = 0; i < repeater.count; i++) {
             const item = repeater.itemAt(i);
             if (!item || item.width <= 0)
@@ -263,22 +262,13 @@ Item {
             const point = surfaceContext.screenPoint(item, item.width / 2, item.height / 2);
             if (!point)
                 continue;
-            mapped++;
             const dist = Math.hypot(point.x - x, point.y - y);
             if (dist < bestDist) {
                 bestDist = dist;
                 best = i;
             }
         }
-        if (best < 0)
-            _dragLog.info("slot search miss", "mapped:", mapped, "at", Math.round(x), Math.round(y), "maxDist", Math.round(maxDistance));
-        else
-            _dragLog.info("slot hit", best, "dist", Math.round(bestDist));
         return best;
-    }
-    QtObject {
-        id: _dragProbe
-        property bool pending: false
     }
     function renameFolder(folderId, name) {
         if (barHosted)
