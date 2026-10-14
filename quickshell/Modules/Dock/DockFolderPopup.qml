@@ -213,6 +213,15 @@ PanelWindow {
             }
         }
 
+        // Swallows clicks inside the panel so option editing never dismisses it; only
+        // clicks on the screen outside close the popup.
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+            onClicked: {
+            }
+        }
+
         Rectangle {
             anchors.fill: parent
             anchors.topMargin: 4
