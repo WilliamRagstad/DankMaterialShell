@@ -214,6 +214,7 @@ Item {
         if (barHosted)
             return;
         const raw = rawPinFor(appId);
+        _dragLog.debug("removeToSlot", folderId, appId, "slot", slotIndex, "raw:", raw);
         if (!raw)
             return;
         const result = ApplicationModel.removeFromFolder(pinnedApps, dockFolders, folderId, raw);
@@ -244,9 +245,12 @@ Item {
         dropTargetIndex = slot;
     }
     // Folder-modal drag-out drop targeting: nearest rendered strip slot to a screen point.
+    // TEMP debug: remove after drag-out investigation.
+    property var _dragLog: Log.scoped("DockFolders")
     function nearestSlotToScreenPoint(x, y, maxDistance) {
         let best = -1;
         let bestDist = maxDistance;
+        let mapped = 0;
         for (let i = 0; i < repeater.count; i++) {
             const item = repeater.itemAt(i);
             if (!item || item.width <= 0)
@@ -254,12 +258,17 @@ Item {
             const point = surfaceContext.screenPoint(item, item.width / 2, item.height / 2);
             if (!point)
                 continue;
+            mapped++;
             const dist = Math.hypot(point.x - x, point.y - y);
             if (dist < bestDist) {
                 bestDist = dist;
                 best = i;
             }
         }
+        if (best < 0)
+            _dragLog.debug("slot search miss", "mapped:", mapped, "at", Math.round(x), Math.round(y), "maxDist", Math.round(maxDistance));
+        else
+            _dragLog.debug("slot hit", best, "dist", Math.round(bestDist));
         return best;
     }
     function renameFolder(folderId, name) {

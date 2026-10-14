@@ -13,6 +13,7 @@ import qs.DCommon.Widgets as DWidgets
 PanelWindow {
     id: root
 
+    readonly property var log: Log.scoped("DockFolders")
     property var dockApps: null
     property string folderId: ""
     property bool editMode: false
@@ -526,13 +527,18 @@ PanelWindow {
                                     return;
                                 memberCell.dragStartPos = Qt.point(mouse.x, mouse.y);
                                 cellLongPress.restart();
+                                root.log.debug("cell pressed", memberCell.appId);
                             }
                             onPositionChanged: mouse => {
                                 if (!memberCell.dragging) {
-                                    if (!memberCell.longPressing || Math.hypot(mouse.x - memberCell.dragStartPos.x, mouse.y - memberCell.dragStartPos.y) <= 10)
+                                    if (!memberCell.longPressing || Math.hypot(mouse.x - memberCell.dragStartPos.x, mouse.y - memberCell.dragStartPos.y) <= 10) {
+                                        if (cellLongPress.running || memberCell.longPressing)
+                                            root.log.debug("move pending", memberCell.longPressing, Math.round(Math.hypot(mouse.x - memberCell.dragStartPos.x, mouse.y - memberCell.dragStartPos.y)));
                                         return;
+                                    }
                                     memberCell.dragging = true;
                                     const start = mapToItem(null, mouse.x, mouse.y);
+                                    root.log.debug("drag started", memberCell.appId, "at", Math.round(start.x), Math.round(start.y));
                                     dragGhost.show(start.x, start.y, memberCell.appId, memberCell.entry);
                                 }
                                 cellLongPress.stop();
@@ -540,6 +546,7 @@ PanelWindow {
                                 dragGhost.move(point.x, point.y);
                                 // Dock items part under the ghost with the standard shift springs.
                                 const slot = root.dockApps?.nearestSlotToScreenPoint(point.x, point.y, Math.max(56, root.dockApps.targetSize * 0.9)) ?? -1;
+                                root.log.debug("drag move slot", slot, "at", Math.round(point.x), Math.round(point.y));
                                 root.dockApps?.previewExternalDrop(slot);
                             }
                             onReleased: mouse => {
@@ -548,13 +555,16 @@ PanelWindow {
                                 memberCell.dragging = false;
                                 memberCell.longPressing = false;
                                 dragGhost.hide();
+                                root.log.debug("released", "dragging:", wasDragging, "button:", mouse.button);
                                 if (wasDragging) {
                                     const point = mapToItem(null, mouse.x, mouse.y);
                                     const slot = root.dockApps?.nearestSlotToScreenPoint(point.x, point.y, Math.max(56, root.dockApps.targetSize * 0.9)) ?? -1;
                                     root.dockApps?.previewExternalDrop(-1);
+                                    root.log.debug("drop slot", slot);
                                     if (slot < 0)
                                         return;
                                     root.dockApps?.removeAppFromFolderToSlot(root.folderId, memberCell.appId, slot);
+                                    root.log.debug("removeAppFromFolderToSlot called", memberCell.appId, "slot", slot);
                                     root.close();
                                     return;
                                 }
