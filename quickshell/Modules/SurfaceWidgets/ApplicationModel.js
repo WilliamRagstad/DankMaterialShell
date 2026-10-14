@@ -95,7 +95,7 @@ function createFolder(pins, folders, srcAppId, dstAppId, folderId) {
     return {
         pins: nextPins,
         folders: Object.assign({}, folders, {
-            [folderId]: { id: folderId, name: "", apps: [dstAppId, srcAppId] }
+            [folderId]: { id: folderId, name: "", apps: [dstAppId, srcAppId], columns: 3 }
         })
     };
 }
@@ -135,13 +135,33 @@ function removeFromFolder(pins, folders, folderId, appId) {
     return { pins: nextPins, folders: nextFolders, dissolved: true };
 }
 
-function renameFolder(folders, folderId, name) {
+function updateFolder(folders, folderId, patch) {
     const folder = folders[folderId];
     if (!folder)
         return null;
     return Object.assign({}, folders, {
-        [folderId]: Object.assign({}, folder, { name })
+        [folderId]: Object.assign({}, folder, patch)
     });
+}
+
+function renameFolder(folders, folderId, name) {
+    return updateFolder(folders, folderId, { name });
+}
+
+// Dissolve spreads every member back into the pin list at the folder's position.
+function dissolveFolder(pins, folders, folderId) {
+    const folder = folders[folderId];
+    if (!folder)
+        return null;
+    const token = folderToken(folderId);
+    const tokenIndex = pins.indexOf(token);
+    if (tokenIndex < 0)
+        return null;
+    const nextPins = pins.slice();
+    nextPins.splice(tokenIndex, 1, ...folder.apps);
+    const nextFolders = Object.assign({}, folders);
+    delete nextFolders[folderId];
+    return { pins: nextPins, folders: nextFolders };
 }
 
 function nextFolderName(folders) {

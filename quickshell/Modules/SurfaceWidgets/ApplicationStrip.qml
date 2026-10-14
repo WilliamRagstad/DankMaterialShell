@@ -214,6 +214,25 @@ Item {
         if (folders)
             SessionData.setDockFolders(surfaceContext.configId, folders);
     }
+    function setFolderColumns(folderId, columns) {
+        if (barHosted)
+            return;
+        const folders = ApplicationModel.updateFolder(dockFolders, folderId, {
+            columns: Math.max(2, Math.min(6, Math.round(columns)))
+        });
+        if (folders)
+            SessionData.setDockFolders(surfaceContext.configId, folders);
+    }
+    // Dissolve spreads every member back as normal pins at the folder's position.
+    function dissolveFolder(folderId) {
+        if (barHosted || !folderId)
+            return;
+        const result = ApplicationModel.dissolveFolder(pinnedApps, dockFolders, folderId);
+        if (!result)
+            return;
+        setPinnedApps(result.pins);
+        SessionData.setDockFolders(surfaceContext.configId, result.folders);
+    }
     // A pin drag either reorders (off-center release) or merges onto the icon it covers
     // (centered release). The strip owns the decision; buttons only report geometry.
     function resolveDropAction(from, to, residual, slotPitch) {

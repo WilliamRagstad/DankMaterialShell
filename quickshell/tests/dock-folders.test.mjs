@@ -104,6 +104,28 @@ test("pinInsertIndex maps a strip slot to a pin list position", () => {
     assert.equal(model.pinInsertIndex(items, 99), 2);
 });
 
+test("updateFolder patches folder records without touching others", () => {
+    const folders = {
+        f1: { id: "f1", name: "A", apps: ["a"], columns: 3 },
+        f2: { id: "f2", name: "B", apps: ["b"], columns: 3 }
+    };
+    const result = model.updateFolder(folders, "f1", { columns: 5 });
+    assert.equal(result.f1.columns, 5);
+    assert.equal(result.f1.name, "A");
+    assert.equal(result.f2.columns, 3);
+    assert.equal(model.updateFolder(folders, "zz", { columns: 4 }), null);
+});
+
+test("dissolveFolder spreads members into the pin list at the token slot", () => {
+    const pins = ["x", "folder:f1", "y"];
+    const folders = { f1: { id: "f1", name: "F", apps: ["a", "b", "c"], columns: 3 } };
+    const result = model.dissolveFolder(pins, folders, "f1");
+    assert.deepEqual(plain(result.pins), ["x", "a", "b", "c", "y"]);
+    assert.equal(result.folders.f1, undefined);
+    assert.equal(model.dissolveFolder(pins, folders, "zz"), null);
+    assert.equal(model.dissolveFolder(["a"], folders, "f1"), null, "missing token rejects");
+});
+
 test("dropMode separates merge targets from reorder slots", () => {
     const pitch = 50;
     assert.equal(model.dropMode(0, pitch), "merge");

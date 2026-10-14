@@ -8,15 +8,17 @@ import qs.Widgets
 import qs.DCommon.Widgets as DWidgets
 
 // Folder grid modal above the dock icon. Modeled on DockContextMenuBase but standalone:
-// the rename field needs keyboard focus and the drag ghost must live outside the menu column.
+// the rename field needs keyboard focus, and the gear-driven options panel lives outside
+// the plain context-menu layout.
 PanelWindow {
     id: root
 
     property var dockApps: null
     property string folderId: ""
+    property bool editMode: false
     readonly property var currentFolder: dockApps ? ((dockApps.items ?? []).find(item => item.folderId === root.folderId) ?? null) : null
     readonly property var members: currentFolder?.folderApps ?? []
-    readonly property int columns: 3
+    readonly property int columns: Math.max(2, Math.min(6, currentFolder?.columns ?? 3))
     readonly property real spacing: Theme.spacingS
     readonly property real cellWidth: Math.floor((menuColumn.width - spacing * (columns - 1)) / columns)
 
@@ -41,12 +43,30 @@ PanelWindow {
         surfaceContext = button?.dockApps?.surfaceContext ?? null;
         dockApps = button?.dockApps ?? null;
         anchorItem = button;
-        renameField.text = "";
+        editMode = false;
         folderId = targetFolderId;
         dockVisibleHeight = dockHeight || 40;
         if (dockApps)
             dockApps.requestDockShow = true;
         visible = true;
+    }
+
+    function beginRename() {
+        editMode = true;
+        renameField.text = currentFolder?.folderName ?? "";
+        Qt.callLater(() => {
+            renameField.forceActiveFocus();
+            renameField.selectAll();
+        });
+    }
+
+    function commitRename() {
+        if (!root.folderId)
+            return;
+        const name = renameField.text.trim();
+        if (!name)
+            return;
+        root.dockApps?.renameFolder(root.folderId, name);
     }
 
     function close() {
@@ -93,14 +113,10 @@ PanelWindow {
             dockApps.requestDockShow = false;
     }
 
+    onFolderIdChanged: editMode = false
     onCurrentFolderChanged: {
-        if (!currentFolder) {
+        if (!currentFolder)
             close();
-            return;
-        }
-        // Fresh item objects arrive on every model rebuild; never clobber in-progress edits.
-        if (!renameField.activeFocus)
-            renameField.text = currentFolder.folderName;
     }
 
     function memberToplevels(appId) {
@@ -179,7 +195,8 @@ PanelWindow {
             return Math.min(root.height - height - 10, root.anchorPos.y);
         }
 
-        width: Math.min(root.menuMaxWidth, Math.max(root.menuMinWidth, menuColumn.implicitWidth + Theme.spacingS * 2))
+        // Width follows the column count so more columns widen the grid instead of shrinking cells.
+        width: Math.min(root.width - 20, Math.max(root.menuMinWidth, root.columns * 108 + Theme.spacingS * 2))
         height: menuColumn.implicitHeight + Theme.spacingS * 2
         color: Theme.floatingSurface
         radius: Theme.windowRadius
@@ -224,23 +241,91 @@ PanelWindow {
                 horizontalAlignment: Text.AlignHCenter
             }
 
-            DWidgets.DTextField {
-                id: renameField
-
+            Item {
                 width: parent.width
-                placeholderText: I18n.tr("Folder name")
-                Keys.onEscapePressed: root.close()
-                onAccepted: {
-                    if (root.folderId)
-                        root.dockApps?.renameFolder(root.folderId, renameField.text);
+                height: Math.max(titleText.implicitHeight, Theme.iconSize)
+
+                StyledText {
+                    id: titleText
+
+                    anchors.left: parent.left
+                    anchors.right: editButton.left
+                    anchors.rightMargin: Theme.spacingS
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.currentFolder?.folderName ?? ""
+                    color: Theme.surfaceText
+                    font.pixelSize: Theme.fontSizeLarge
+                    font.weight: Theme.fontWeightMedium
+                    elide: Text.ElideRight
                 }
-                onEditingFinished: {
-                    if (!root.folderId)
-                        return;
-                    const name = renameField.text.trim();
-                    if (!name || name === (root.currentFolder?.folderName ?? ""))
-                        return;
-                    root.dockApps?.renameFolder(root.folderId, name);
+
+                DWidgets.DActionButton {
+                    id: editButton
+
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    iconName: root.editMode ? "close" : "tune"
+                    buttonSize: Theme.iconSize - 6
+                    iconSize: 16
+                    Accessible.name: I18n.tr("Folder options")
+                    onClicked: root.editMode ? root.editMode = false : root.beginRename()
+                }
+            }
+
+            Column {
+                width: parent.width
+                spacing: Theme.spacingS
+                visible: root.editMode
+
+                DWidgets.DTextField {
+                    id: renameField
+
+                    width: parent.width
+                    placeholderText: I18n.tr("Folder name")
+                    text: root.currentFolder?.folderName ?? ""
+                    Keys.onEscapePressed: {
+                        root.editMode = false;
+                        event.accepted = true;
+                    }
+                    onAccepted: {
+                        root.commitRename();
+                        root.editMode = false;
+                    }
+                }
+
+                Item {
+                    width: parent.width
+                    height: Theme.iconSize - 6
+
+                    StyledText {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: I18n.tr("Grid columns")
+                        color: Theme.surfaceText
+                        font.pixelSize: Theme.fontSizeSmall
+                    }
+
+                    DWidgets.DNumberStepper {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: String(root.columns)
+                        incrementIconName: "add"
+                        decrementIconName: "remove"
+                        incrementEnabled: root.columns < 6
+                        decrementEnabled: root.columns > 2
+                        onIncrement: root.dockApps?.setFolderColumns(root.folderId, root.columns + 1)
+                        onDecrement: root.dockApps?.setFolderColumns(root.folderId, root.columns - 1)
+                    }
+                }
+
+                DWidgets.DButton {
+                    width: parent.width
+                    text: I18n.tr("Dissolve folder")
+                    iconName: "call_split"
+                    onClicked: {
+                        root.dockApps?.dissolveFolder(root.folderId);
+                        root.close();
+                    }
                 }
             }
 
@@ -248,6 +333,7 @@ PanelWindow {
                 width: parent.width
                 height: 1
                 color: Theme.outlineHeavy
+                visible: root.editMode
             }
 
             Grid {
