@@ -196,7 +196,7 @@ PanelWindow {
         }
 
         // Width follows the column count so more columns widen the grid instead of shrinking cells.
-        width: Math.min(root.width - 20, Math.max(root.menuMinWidth, root.columns * 108 + Theme.spacingS * 2))
+        width: Math.min(root.width - 20, Math.max(root.menuMinWidth, root.columns * 108 + Theme.spacingM * 2))
         height: menuColumn.implicitHeight + Theme.spacingS * 2
         color: Theme.floatingSurface
         radius: Theme.windowRadius
@@ -226,11 +226,11 @@ PanelWindow {
 
         Column {
             id: menuColumn
-            width: parent.width - Theme.spacingS * 2
+            width: parent.width - Theme.spacingM * 2
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
-            anchors.topMargin: Theme.spacingS
-            spacing: 1
+            anchors.topMargin: Theme.spacingM
+            spacing: Theme.spacingS
 
             StyledText {
                 visible: root.members.length === 0
@@ -243,7 +243,7 @@ PanelWindow {
 
             Item {
                 width: parent.width
-                height: Math.max(titleText.implicitHeight, Theme.iconSize)
+                height: Theme.iconSize + Theme.spacingS
 
                 StyledText {
                     id: titleText
@@ -265,7 +265,7 @@ PanelWindow {
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     iconName: root.editMode ? "close" : "tune"
-                    buttonSize: Theme.iconSize - 6
+                    buttonSize: Theme.iconSize
                     iconSize: 16
                     Accessible.name: I18n.tr("Folder options")
                     onClicked: root.editMode ? root.editMode = false : root.beginRename()
@@ -293,9 +293,11 @@ PanelWindow {
                     }
                 }
 
+                // onIncrement/onDecrement are plain var callbacks: they must hold functions,
+                // not evaluated calls, or the stepper buttons stay disabled forever.
                 Item {
                     width: parent.width
-                    height: Theme.iconSize - 6
+                    height: Theme.iconSize + Theme.spacingM
 
                     StyledText {
                         anchors.left: parent.left
@@ -313,8 +315,8 @@ PanelWindow {
                         decrementIconName: "remove"
                         incrementEnabled: root.columns < 6
                         decrementEnabled: root.columns > 2
-                        onIncrement: root.dockApps?.setFolderColumns(root.folderId, root.columns + 1)
-                        onDecrement: root.dockApps?.setFolderColumns(root.folderId, root.columns - 1)
+                        onIncrement: () => root.dockApps?.setFolderColumns(root.folderId, root.columns + 1)
+                        onDecrement: () => root.dockApps?.setFolderColumns(root.folderId, root.columns - 1)
                     }
                 }
 
