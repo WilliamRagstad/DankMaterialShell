@@ -293,60 +293,104 @@ PanelWindow {
                     }
                 }
 
-                Row {
+                // Options as a bordered row group, matching the settings row structure:
+                // fixed-height rows, label left, control right, dividers between.
+                Column {
                     width: parent.width
-                    spacing: Theme.spacingS
+                    spacing: 0
 
-                    StyledText {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: I18n.tr("Grid columns")
-                        color: Theme.surfaceText
-                        font.pixelSize: Theme.fontSizeSmall
+                    Item {
+                        width: parent.width
+                        height: Theme.listItemHeight
+
+                        StyledText {
+                            anchors.left: parent.left
+                            anchors.leftMargin: Theme.spacingS
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: I18n.tr("Grid columns")
+                            color: Theme.surfaceText
+                            font.pixelSize: Theme.fontSizeSmall
+                        }
+
+                        Row {
+                            anchors.right: parent.right
+                            anchors.rightMargin: Theme.spacingS
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Theme.spacingS
+
+                            DWidgets.DActionButton {
+                                anchors.verticalCenter: parent.verticalCenter
+                                iconName: "remove"
+                                iconSize: 16
+                                buttonSize: Theme.iconSize - 4
+                                enabled: root.columns > 2
+                                Accessible.name: I18n.tr("Fewer columns")
+                                onClicked: root.dockApps?.setFolderColumns(root.folderId, root.columns - 1)
+                            }
+
+                            StyledText {
+                                id: columnsValue
+
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: Theme.fontSizeLarge * 2
+                                text: String(root.columns)
+                                isMonospace: true
+                                color: Theme.surfaceText
+                                font.pixelSize: Theme.fontSizeSmall
+                                horizontalAlignment: Text.AlignHCenter
+                            }
+
+                            DWidgets.DActionButton {
+                                anchors.verticalCenter: parent.verticalCenter
+                                iconName: "add"
+                                iconSize: 16
+                                buttonSize: Theme.iconSize - 4
+                                enabled: root.columns < 6
+                                Accessible.name: I18n.tr("More columns")
+                                onClicked: root.dockApps?.setFolderColumns(root.folderId, root.columns + 1)
+                            }
+                        }
+
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            height: 1
+                            color: Theme.outlineHeavy
+                        }
                     }
 
                     Item {
-                        width: parent.width - parent.spacing * 3 - columnsValue.implicitWidth
-                        height: parent.height
-                    }
+                        width: parent.width
+                        height: Theme.listItemHeight
 
-                    DWidgets.DActionButton {
-                        anchors.verticalCenter: parent.verticalCenter
-                        iconName: "remove"
-                        iconSize: 16
-                        buttonSize: Theme.iconSize - 4
-                        enabled: root.columns > 2
-                        Accessible.name: I18n.tr("Fewer columns")
-                        onClicked: root.dockApps?.setFolderColumns(root.folderId, root.columns - 1)
-                    }
+                        DWidgets.DIcon {
+                            anchors.left: parent.left
+                            anchors.leftMargin: Theme.spacingS
+                            anchors.verticalCenter: parent.verticalCenter
+                            name: "call_split"
+                            size: 16
+                            color: Theme.surfaceText
+                        }
 
-                    StyledText {
-                        id: columnsValue
+                        StyledText {
+                            anchors.left: parent.left
+                            anchors.leftMargin: Theme.spacingS + 16 + Theme.spacingS
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: I18n.tr("Dissolve folder")
+                            color: Theme.surfaceText
+                            font.pixelSize: Theme.fontSizeSmall
+                        }
 
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: String(root.columns)
-                        isMonospace: true
-                        color: Theme.surfaceText
-                        font.pixelSize: Theme.fontSizeSmall
-                    }
-
-                    DWidgets.DActionButton {
-                        anchors.verticalCenter: parent.verticalCenter
-                        iconName: "add"
-                        iconSize: 16
-                        buttonSize: Theme.iconSize - 4
-                        enabled: root.columns < 6
-                        Accessible.name: I18n.tr("More columns")
-                        onClicked: root.dockApps?.setFolderColumns(root.folderId, root.columns + 1)
-                    }
-                }
-
-                DWidgets.DButton {
-                    width: parent.width
-                    text: I18n.tr("Dissolve folder")
-                    iconName: "call_split"
-                    onClicked: {
-                        root.dockApps?.dissolveFolder(root.folderId);
-                        root.close();
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                root.dockApps?.dissolveFolder(root.folderId);
+                                root.close();
+                            }
+                        }
                     }
                 }
             }
@@ -374,9 +418,20 @@ PanelWindow {
                         readonly property string appId: modelData
                         readonly property var entry: DesktopEntries.heuristicLookup(Paths.moddedAppId(appId))
                         readonly property bool running: root.memberToplevels(appId).length > 0
+                        property bool longPressing: false
+                        property bool dragging: false
+                        property point dragStartPos: Qt.point(0, 0)
 
                         width: root.cellWidth
                         height: root.cellWidth * 0.5 + Theme.fontSizeSmall + Theme.spacingXS + Theme.spacingS
+
+                        Timer {
+                            id: cellLongPress
+
+                            interval: 500
+                            repeat: false
+                            onTriggered: memberCell.longPressing = true
+                        }
 
                         Rectangle {
                             anchors.fill: parent
@@ -440,6 +495,66 @@ PanelWindow {
                             visible: running
                         }
 
+                        // Dock-style gestures: press, hold 500ms then move to drag the app
+                        // out; a plain click activates; right-click pops it back to the dock.
+                        MouseArea {
+                            id: memberArea
+
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: memberCell.dragging ? Qt.DragMoveCursor : Qt.PointingHandCursor
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            preventStealing: memberCell.dragging || memberCell.longPressing
+                            onPressed: mouse => {
+                                if (mouse.button !== Qt.LeftButton)
+                                    return;
+                                memberCell.dragStartPos = Qt.point(mouse.x, mouse.y);
+                                cellLongPress.restart();
+                            }
+                            onPositionChanged: mouse => {
+                                if (memberCell.longPressing && !memberCell.dragging && Math.hypot(mouse.x - memberCell.dragStartPos.x, mouse.y - memberCell.dragStartPos.y) > 5) {
+                                    memberCell.dragging = true;
+                                    const start = mapToItem(null, mouse.x, mouse.y);
+                                    dragGhost.show(start.x, start.y, memberCell.appId, memberCell.entry);
+                                }
+                                if (!memberCell.dragging)
+                                    return;
+                                cellLongPress.stop();
+                                const point = mapToItem(null, mouse.x, mouse.y);
+                                dragGhost.move(point.x, point.y);
+                            }
+                            onReleased: mouse => {
+                                cellLongPress.stop();
+                                if (memberCell.dragging) {
+                                    memberCell.dragging = false;
+                                    memberCell.longPressing = false;
+                                    dragGhost.hide();
+                                    const point = mapToItem(null, mouse.x, mouse.y);
+                                    const slot = root.dockApps?.nearestSlotToScreenPoint(point.x, point.y, root.dockApps.targetSize * 0.9) ?? -1;
+                                    if (slot < 0)
+                                        return;
+                                    root.dockApps?.removeAppFromFolderToSlot(root.folderId, memberCell.appId, slot);
+                                    root.close();
+                                    return;
+                                }
+                                memberCell.longPressing = false;
+                                if (mouse.button === Qt.LeftButton)
+                                    root.activateMember(memberCell.appId);
+                            }
+                            onCanceled: {
+                                cellLongPress.stop();
+                                memberCell.dragging = false;
+                                memberCell.longPressing = false;
+                                dragGhost.hide();
+                            }
+                            onClicked: mouse => {
+                                if (mouse.button === Qt.RightButton) {
+                                    root.dockApps?.removeAppFromFolderToDock(root.folderId, memberCell.appId);
+                                    root.close();
+                                }
+                            }
+                        }
+
                         DWidgets.DActionButton {
                             anchors.top: parent.top
                             anchors.right: parent.right
@@ -447,35 +562,56 @@ PanelWindow {
                             iconName: "close"
                             iconSize: 12
                             buttonSize: 20
-                            visible: memberArea.containsMouse
+                            visible: memberArea.containsMouse && !memberCell.dragging
+                            z: 10
                             onClicked: {
                                 root.dockApps?.removeAppFromFolderToDock(root.folderId, memberCell.appId);
-                            }
-                        }
-
-                        // Cells behave like dock buttons: click activates, right-click
-                        // pops the app back out to the dock. No drag gestures in the grid.
-                        MouseArea {
-                            id: memberArea
-
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            acceptedButtons: Qt.LeftButton | Qt.RightButton
-                            onClicked: mouse => {
-                                if (mouse.button === Qt.LeftButton) {
-                                    root.activateMember(memberCell.appId);
-                                    return;
-                                }
-                                if (mouse.button === Qt.RightButton) {
-                                    root.dockApps?.removeAppFromFolderToDock(root.folderId, memberCell.appId);
-                                    root.close();
-                                }
                             }
                         }
                     }
                 }
             }
+        }
+    }
+
+    // Drag ghost lives beside the menu column so Column layout never reflows around it.
+    Item {
+        id: dragGhost
+
+        visible: false
+        width: 44
+        height: 44
+        z: 100
+
+        function show(x, y, appId, entry) {
+            ghostIcon.source = Paths.getAppIcon(Paths.moddedAppId(appId), entry);
+            dragGhost.x = x - dragGhost.width / 2;
+            dragGhost.y = y - dragGhost.height / 2;
+            dragGhost.visible = true;
+        }
+        function move(x, y) {
+            dragGhost.x = x - dragGhost.width / 2;
+            dragGhost.y = y - dragGhost.height / 2;
+        }
+        function hide() {
+            dragGhost.visible = false;
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: Theme.cornerRadius
+            color: Theme.primarySelected
+            border.width: 1
+            border.color: Theme.primary
+        }
+
+        IconImage {
+            id: ghostIcon
+
+            anchors.centerIn: parent
+            implicitSize: 36
+            mipmap: true
+            smooth: true
         }
     }
 
