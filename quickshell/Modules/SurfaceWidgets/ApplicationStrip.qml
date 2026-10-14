@@ -251,6 +251,11 @@ Item {
         let best = -1;
         let bestDist = maxDistance;
         let mapped = 0;
+        if (repeater.count > 0 && best < 0 && _dragProbe.pending === false) {
+            const first = repeater.itemAt(0);
+            _dragLog.info("probe", "repeaterCount:", repeater.count, "surfaceCtx:", surfaceContext !== null, "ctxScreen:", surfaceContext?.screen?.name ?? "null", "hostKind:", surfaceContext?.kind ?? "null", "firstItemWindow:", first ? (first.Window?.window ?? "null") : "no-item", "ctxThickness:", surfaceContext?.thickness);
+            _dragProbe.pending = true;
+        }
         for (let i = 0; i < repeater.count; i++) {
             const item = repeater.itemAt(i);
             if (!item || item.width <= 0)
@@ -270,6 +275,10 @@ Item {
         else
             _dragLog.info("slot hit", best, "dist", Math.round(bestDist));
         return best;
+    }
+    QtObject {
+        id: _dragProbe
+        property bool pending: false
     }
     function renameFolder(folderId, name) {
         if (barHosted)
