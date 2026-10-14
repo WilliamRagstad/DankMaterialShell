@@ -19,12 +19,14 @@ PanelWindow {
     readonly property var currentFolder: dockApps ? ((dockApps.items ?? []).find(item => item.folderId === root.folderId) ?? null) : null
     readonly property var members: currentFolder?.folderApps ?? []
     readonly property int columns: Math.max(2, Math.min(6, currentFolder?.columns ?? 3))
+    // Grid sizing follows the dock's own iconSize config so the popup scales with the dock.
+    readonly property real dockIconSize: Math.max(24, dockApps?.iconSize ?? 42)
     readonly property real spacing: Theme.spacingS
+    readonly property real slotPitch: dockIconSize * 1.6 + spacing
+    readonly property real minPopupWidth: Math.max(280, columns >= 2 ? 2 * slotPitch + Theme.spacingM * 2 : slotPitch + Theme.spacingM * 2)
     readonly property real cellWidth: Math.floor((menuColumn.width - spacing * (columns - 1)) / columns)
 
     property string layerNamespace: "dms:dock-folder-popup"
-    property real menuMaxWidth: 400
-    property real menuMinWidth: 340
 
     property point anchorPos: Qt.point(screen ? screen.width / 2 : 0, screen ? screen.height - 100 : 0)
     property var anchorItem: null
@@ -195,8 +197,9 @@ PanelWindow {
             return Math.min(root.height - height - 10, root.anchorPos.y);
         }
 
-        // Width follows the column count so more columns widen the grid instead of shrinking cells.
-        width: Math.min(root.width - 20, Math.max(root.menuMinWidth, root.columns * 108 + Theme.spacingM * 2))
+        // Width follows the dock iconSize and column count so more columns widen the
+        // grid instead of shrinking cells.
+        width: Math.min(root.width - 20, Math.max(root.minPopupWidth, root.columns * root.slotPitch + Theme.spacingM * 2))
         height: menuColumn.implicitHeight + Theme.spacingS * 2
         color: Theme.floatingSurface
         radius: Theme.windowRadius
@@ -432,7 +435,7 @@ PanelWindow {
                         property point dragStartPos: Qt.point(0, 0)
 
                         width: root.cellWidth
-                        height: root.cellWidth * 0.5 + Theme.fontSizeSmall + Theme.spacingXS + Theme.spacingS
+                        height: root.dockIconSize + Theme.fontSizeSmall + Theme.spacingXS + Theme.spacingS
 
                         Timer {
                             id: cellLongPress
@@ -462,7 +465,7 @@ PanelWindow {
                             Item {
                                 id: iconSlot
 
-                                width: root.cellWidth * 0.45
+                                width: root.dockIconSize
                                 height: width
                                 anchors.horizontalCenter: parent.horizontalCenter
 
@@ -587,8 +590,8 @@ PanelWindow {
         id: dragGhost
 
         visible: false
-        width: 44
-        height: 44
+        width: root.dockIconSize + 8
+        height: width
         z: 100
 
         function show(x, y, appId, entry) {
@@ -617,7 +620,7 @@ PanelWindow {
             id: ghostIcon
 
             anchors.centerIn: parent
-            implicitSize: 36
+            implicitSize: root.dockIconSize * 0.8
             mipmap: true
             smooth: true
         }
