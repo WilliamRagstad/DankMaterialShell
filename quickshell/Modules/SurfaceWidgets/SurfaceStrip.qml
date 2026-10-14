@@ -267,30 +267,21 @@ FocusScope {
     function nearestAppSlotToScreenPoint(x, y, maxDistance) {
         let best = -1;
         let bestDist = maxDistance;
-        let mapped = 0;
         for (let i = 0; i < repeater.count; i++) {
             const slot = repeater.itemAt(i);
             if (!slot || slot.modelData?.widgetId !== "application" || slot.width <= 0)
                 continue;
             const point = surfaceContext.screenPoint(slot, slot.width / 2, slot.height / 2);
-            if (!point) {
-                _dropLog.info("slot map null", i, "ctxScreen:", surfaceContext?.screen?.name ?? "null", "slotWindow:", slot.Window?.window ?? "null");
+            if (!point)
                 continue;
-            }
-            mapped++;
             const dist = Math.hypot(point.x - x, point.y - y);
             if (dist < bestDist) {
                 bestDist = dist;
                 best = slot.modelData.appIndex;
             }
         }
-        if (best < 0)
-            _dropLog.info("slot search miss", "mapped:", mapped, "slots:", repeater.count, "at", Math.round(x), Math.round(y), "maxDist", Math.round(maxDistance));
-        else
-            _dropLog.info("slot hit", best, "dist", Math.round(bestDist));
         return best;
     }
-    readonly property var _dropLog: Log.scoped("DockFolders")
 
     function contentPosition(item, x, y) {
         const point = item.mapToItem(scroll.contentItem, x, y);

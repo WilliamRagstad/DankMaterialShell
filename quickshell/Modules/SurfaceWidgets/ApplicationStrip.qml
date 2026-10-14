@@ -223,7 +223,6 @@ Item {
         if (barHosted)
             return;
         const raw = rawPinFor(appId);
-        _dragLog.info("removeToSlot", folderId, appId, "slot", slotIndex, "raw:", raw);
         if (!raw)
             return;
         const result = ApplicationModel.removeFromFolder(pinnedApps, dockFolders, folderId, raw);
@@ -257,8 +256,6 @@ Item {
         dropTargetIndex = slot;
     }
     // Folder-modal drag-out drop targeting: nearest rendered strip slot to a screen point.
-    // TEMP debug: remove after drag-out investigation.
-    property var _dragLog: Log.scoped("DockFolders")
     function nearestSlotToScreenPoint(x, y, maxDistance) {
         // Dock strips render app items through their SurfaceStrip host (renderItems is
         // false there), so slot geometry lives on the mixed strip; bar strips keep the
