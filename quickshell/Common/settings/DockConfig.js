@@ -23,6 +23,7 @@ function create(id, name) {
         spacing: 8,
         itemSpacing: 8,
         margin: 8,
+        folderPopupGap: 8,
         bottomGap: 0,
         transparency: 1,
         followInterfaceStyle: true,
@@ -107,6 +108,7 @@ function normalize(configs) {
         result.itemSpacing = bounded(result.itemSpacing, defaults.itemSpacing, 0, 32);
         for (const key of ["spacing", "margin"])
             result[key] = bounded(result[key], defaults[key], 0, 128);
+        result.folderPopupGap = bounded(result.folderPopupGap, defaults.folderPopupGap, 0, 32);
         result.bottomGap = bounded(result.bottomGap, defaults.bottomGap, -128, 128);
         for (const key of ["transparency", "borderOpacity", "launcherLogoBrightness"])
             result[key] = bounded(result[key], 1, 0, 1);

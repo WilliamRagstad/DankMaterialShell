@@ -72,6 +72,19 @@ Item {
                 unit: "px"
                 onSliderValueChanged: value => dock.setOption("margin", value)
             }
+
+            SettingsSliderRow {
+                settingKey: "dockFolderPopupGap"
+                tags: ["dock", "folder", "popup", "gap", "spacing", "margin"]
+                resetStore: dock
+                resetKeys: ["folderPopupGap"]
+                text: I18n.tr("Folder gap", "dock setting: gap between folder popup and dock")
+                value: dock.config?.folderPopupGap ?? 8
+                minimum: 0
+                maximum: 32
+                unit: "px"
+                onSliderValueChanged: value => dock.setOption("folderPopupGap", value)
+            }
         }
 
         SettingsToggleCard {

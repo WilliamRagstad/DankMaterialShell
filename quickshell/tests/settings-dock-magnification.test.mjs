@@ -35,9 +35,15 @@ test("folder magnification defaults on for existing docks and stays configurable
     const oldConfig = dockConfig.normalize([{ id: "dock", magnification: true }])[0];
     assert.equal(oldConfig.folderMagnification, true);
     assert.equal(oldConfig.folderMagnificationScale, 110);
+    assert.equal(oldConfig.folderPopupGap, 8);
 
     const disabledConfig = dockConfig.normalize([{ id: "dock", folderMagnification: false, folderMagnificationScale: 125 }])[0];
     assert.equal(disabledConfig.folderMagnification, false);
     assert.equal(disabledConfig.folderMagnificationScale, 125);
     assert.equal(dockConfig.normalize([{ id: "dock", folderMagnificationScale: 150 }])[0].folderMagnificationScale, 130);
+});
+
+test("folder popup gap is bounded and configurable", () => {
+    assert.equal(dockConfig.normalize([{ id: "dock", folderPopupGap: 24 }])[0].folderPopupGap, 24);
+    assert.equal(dockConfig.normalize([{ id: "dock", folderPopupGap: 200 }])[0].folderPopupGap, 32);
 });

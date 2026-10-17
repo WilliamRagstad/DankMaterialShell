@@ -215,7 +215,7 @@ PanelWindow {
         const point = surfaceContext?.screenPoint(anchorItem, anchorItem.width / 2, anchorItem.height / 2);
         if (!point)
             return;
-        const extent = (surfaceContext?.thickness ?? dockVisibleHeight) / 2 + Theme.spacingS;
+        const extent = (surfaceContext?.thickness ?? dockVisibleHeight) / 2 + (dockApps?.options.folderPopupGap ?? Theme.spacingS);
         switch (dockApps?.options.position) {
         case SettingsData.Position.Left:
             anchorPos = Qt.point(point.x + extent, point.y);
