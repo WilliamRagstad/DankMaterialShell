@@ -27,6 +27,8 @@ PanelWindow {
     readonly property real popupPadding: Math.max(Theme.spacingS, dockPadding)
     readonly property real popupBottomPadding: popupPadding + Theme.spacingS
     readonly property real popupMargin: Math.max(Theme.spacingS, dockApps?.options.margin ?? 0)
+    readonly property real closeAcceptanceMargin: (surfaceContext?.thickness ?? dockVisibleHeight) / 2 + (dockApps?.options.folderPopupGap ?? Theme.spacingS) + (dockApps?.options.spacing ?? Theme.spacingS)
+    readonly property real dockAcceptanceMargin: Math.max(0, dockApps?.options.spacing ?? 0)
     readonly property real spacing: Math.max(0, dockApps?.options.itemSpacing ?? Theme.spacingS)
     TextMetrics {
         id: labelMetrics
@@ -105,6 +107,42 @@ PanelWindow {
     property real dockVisibleHeight: 40
     property int reorderFrom: -1
     property int reorderTo: -1
+    property bool closing: false
+    property point pointerPosition: Qt.point(-1, -1)
+
+    function pointerInsidePopup(point) {
+        return point.x >= menuContainer.x - closeAcceptanceMargin
+            && point.x <= menuContainer.x + menuContainer.width + closeAcceptanceMargin
+            && point.y >= menuContainer.y - closeAcceptanceMargin
+            && point.y <= menuContainer.y + menuContainer.height + closeAcceptanceMargin;
+    }
+
+    function pointerOverDock(point) {
+        const strip = dockApps?.mixedStrip;
+        if (!strip || strip.width <= 0 || strip.height <= 0)
+            return false;
+        const topLeft = surfaceContext?.screenPoint(strip, 0, 0);
+        const bottomRight = surfaceContext?.screenPoint(strip, strip.width, strip.height);
+        if (!topLeft || !bottomRight)
+            return false;
+        return point.x >= Math.min(topLeft.x, bottomRight.x) - dockAcceptanceMargin
+            && point.x <= Math.max(topLeft.x, bottomRight.x) + dockAcceptanceMargin
+            && point.y >= Math.min(topLeft.y, bottomRight.y) - dockAcceptanceMargin
+            && point.y <= Math.max(topLeft.y, bottomRight.y) + dockAcceptanceMargin;
+    }
+
+    function updatePointerRegion(point) {
+        pointerPosition = point;
+        if (!visible || dissolveConfirmDialog.shouldBeVisible || reorderFrom >= 0) {
+            popupLeaveTimer.stop();
+            return;
+        }
+        if (pointerInsidePopup(point) || pointerOverDock(point)) {
+            popupLeaveTimer.stop();
+            return;
+        }
+        popupLeaveTimer.restart();
+    }
 
     function previewSlotFor(index) {
         if (reorderFrom < 0 || reorderTo < 0 || reorderFrom === reorderTo)
@@ -163,10 +201,16 @@ PanelWindow {
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
 
     function showForButton(button, targetFolderId, dockHeight, dockScreen) {
+        popupLeaveTimer.stop();
+        closeAnimationTimer.stop();
+        closing = false;
         if (dockScreen)
             screen = dockScreen;
         surfaceContext = button?.dockApps?.surfaceContext ?? null;
         dockApps = button?.dockApps ?? null;
+        const pointer = surfaceContext?.screenPoint(button, button.width / 2, button.height / 2);
+        if (pointer)
+            pointerPosition = pointer;
         anchorItem = button;
         editMode = false;
         folderId = targetFolderId;
@@ -206,7 +250,15 @@ PanelWindow {
     }
 
     function close() {
-        visible = false;
+        if (!visible || closing)
+            return;
+        closing = true;
+        popupLeaveTimer.stop();
+        if (anchorItem)
+            surfaceContext?.ensureVisible(anchorItem);
+        if (dockApps)
+            dockApps.requestDockShow = false;
+        closeAnimationTimer.restart();
     }
 
     function updatePosition() {
@@ -248,6 +300,9 @@ PanelWindow {
         surfaceContext = null;
         if (dockApps)
             dockApps.requestDockShow = false;
+        popupLeaveTimer.stop();
+        closeAnimationTimer.stop();
+        closing = false;
     }
 
     ConfirmModal {
@@ -317,6 +372,37 @@ PanelWindow {
         blurRadius: Theme.windowRadius
     }
 
+    HoverHandler {
+        id: pointerTracker
+        enabled: root.visible && !root.closing
+        onPointChanged: root.updatePointerRegion(point.position)
+        onHoveredChanged: {
+            if (hovered || !root.visible || dissolveConfirmDialog.shouldBeVisible || root.reorderFrom >= 0)
+                return;
+            root.pointerPosition = Qt.point(-1, -1);
+            popupLeaveTimer.restart();
+        }
+    }
+
+    // DockBody's reveal hold supplies the normal close delay after popup releases its dock hold.
+    Timer {
+        id: popupLeaveTimer
+        interval: 0
+        repeat: false
+        onTriggered: {
+            const point = root.pointerPosition;
+            if (root.visible && !root.closing && !dissolveConfirmDialog.shouldBeVisible && root.reorderFrom < 0 && !root.pointerInsidePopup(point) && !root.pointerOverDock(point))
+                root.close();
+        }
+    }
+
+    Timer {
+        id: closeAnimationTimer
+        interval: Theme.shortDuration
+        repeat: false
+        onTriggered: root.visible = false
+    }
+
     screen: null
     visible: false
     color: "transparent"
@@ -362,7 +448,7 @@ PanelWindow {
         border.color: root.popupBorderColor
         border.width: root.dockOutlineEnabled ? root.dockOutlineWidth : BlurService.borderWidth
 
-        opacity: root.visible ? 1 : 0
+        opacity: root.closing ? 0 : 1
         visible: opacity > 0
 
         Behavior on opacity {
@@ -372,12 +458,42 @@ PanelWindow {
             }
         }
 
+        transform: Translate {
+            readonly property real closeDistance: {
+                const host = root.dockApps?.surfaceContext?.host;
+                return (host?.effectiveBarHeight ?? root.surfaceContext?.thickness ?? root.dockVisibleHeight)
+                    + (host?.usesConnectedFrameChrome ? (root.dockApps?.options.spacing ?? 0) : 0) + 10;
+            }
+            x: root.closing ? (root.dockApps?.options.position === SettingsData.Position.Left ? -closeDistance : root.dockApps?.options.position === SettingsData.Position.Right ? closeDistance : 0) : 0
+            y: root.closing ? (root.dockApps?.options.position === SettingsData.Position.Bottom ? closeDistance : root.dockApps?.options.position === SettingsData.Position.Top ? -closeDistance : 0) : 0
+
+            Behavior on x {
+                NumberAnimation {
+                    duration: Theme.shortDuration
+                    easing.type: Easing.OutCubic
+                }
+            }
+            Behavior on y {
+                NumberAnimation {
+                    duration: Theme.shortDuration
+                    easing.type: Easing.OutCubic
+                }
+            }
+        }
+
         // Swallows clicks inside the panel so option editing never dismisses it; only
         // clicks on the screen outside close the popup.
         MouseArea {
             anchors.fill: parent
             acceptedButtons: Qt.AllButtons
-            onClicked: {
+            onClicked: mouse => {
+                if (mouse.button !== Qt.RightButton || !root.dockApps?.options.editOnRightClick)
+                    return;
+                const dockHost = root.surfaceContext?.host;
+                if (!dockHost)
+                    return;
+                dockHost.editMode = !dockHost.editMode;
+                root.close();
             }
         }
 
