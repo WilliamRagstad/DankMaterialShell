@@ -6,6 +6,7 @@ import qs.Common
 import qs.Services
 import qs.Widgets
 import qs.DCommon.Widgets as DWidgets
+import "../../Common/settings/DockConfig.js" as DockConfig
 
 // Folder grid modal above the dock icon. Modeled on DockContextMenuBase but standalone:
 // the rename field needs keyboard focus, and the gear-driven options panel lives outside
@@ -26,11 +27,61 @@ PanelWindow {
     readonly property real popupBottomPadding: popupPadding + Theme.spacingS
     readonly property real popupMargin: Math.max(Theme.spacingS, dockApps?.options.margin ?? 0)
     readonly property real spacing: Math.max(0, dockApps?.options.itemSpacing ?? Theme.spacingS)
+    TextMetrics {
+        id: labelMetrics
+        font.pixelSize: Theme.fontSizeSmall
+        text: "Ag"
+    }
     readonly property real slotPitch: dockIconSize * 1.6 + spacing
     readonly property real minPopupWidth: Math.max(280, columns >= 2 ? 2 * slotPitch + popupPadding * 2 : slotPitch + popupPadding * 2)
-    readonly property real cellWidth: Math.floor((menuColumn.width - spacing * (columns - 1)) / columns)
+    readonly property real cellWidth: dockIconSize * 1.6
+    readonly property real cellLabelHeight: labelMetrics.height * 2
+    readonly property real cellHeight: dockIconSize + cellLabelHeight + Theme.spacingXS + Theme.spacingS
+    readonly property int rowCount: Math.ceil(members.length / columns)
+    readonly property real baseGridWidth: columns * cellWidth + Math.max(0, columns - 1) * spacing
+    readonly property real baseGridHeight: rowCount * cellHeight + Math.max(0, rowCount - 1) * spacing
+    readonly property real basePopupWidth: Math.max(minPopupWidth, baseGridWidth + popupPadding * 2)
     readonly property bool dockOutlineEnabled: dockApps?.options.borderEnabled === true && !(dockApps?.surfaceContext?.host?.usesConnectedFrameChrome ?? false)
     readonly property real dockOutlineWidth: Math.max(1, dockApps?.options.borderThickness ?? 1)
+    readonly property bool magnificationEnabled: dockApps?.options.magnification === true
+    readonly property real magnificationScale: Math.max(1.05, Math.min(2, (dockApps?.options.magnificationScale ?? 130) / 100))
+    readonly property string magnificationProfile: dockApps?.options.magnificationProfile ?? "parabolic"
+    readonly property real magnificationRadius: DockConfig.magnificationRadius(dockIconSize, magnificationProfile)
+    property real magnificationProgress: 0
+    readonly property var magnificationScales: {
+        const scales = Array(members.length).fill(1);
+        if (!magnificationEnabled || !gridMagnification.hovered || magnificationProgress <= 0.001)
+            return scales;
+        const cursor = gridMagnification.point.position;
+        for (let index = 0; index < members.length; index++) {
+            const column = index % columns;
+            const row = Math.floor(index / columns);
+            const centerX = column * slotPitch + cellWidth / 2;
+            const centerY = row * (cellHeight + spacing) + cellHeight / 2;
+            const distance = Math.hypot(centerX - cursor.x, centerY - cursor.y);
+            const factor = DockConfig.magnificationFactor(distance, magnificationRadius, magnificationProfile);
+            scales[index] = 1 + (magnificationScale - 1) * factor * magnificationProgress;
+        }
+        return scales;
+    }
+    readonly property var columnExpansions: {
+        const expansions = Array(columns).fill(0);
+        for (let index = 0; index < magnificationScales.length; index++) {
+            const column = index % columns;
+            expansions[column] = Math.max(expansions[column], (magnificationScales[index] - 1) * cellWidth);
+        }
+        return expansions;
+    }
+    readonly property var rowExpansions: {
+        const expansions = Array(rowCount).fill(0);
+        for (let index = 0; index < magnificationScales.length; index++) {
+            const row = Math.floor(index / columns);
+            expansions[row] = Math.max(expansions[row], (magnificationScales[index] - 1) * cellHeight);
+        }
+        return expansions;
+    }
+    readonly property real magnificationExpansionWidth: columnExpansions.reduce((sum, extra) => sum + extra, 0)
+    readonly property real magnificationExpansionHeight: rowExpansions.reduce((sum, extra) => sum + extra, 0)
     readonly property color popupBorderColor: {
         if (!dockOutlineEnabled)
             return BlurService.borderColor;
@@ -135,6 +186,19 @@ PanelWindow {
     }
 
     onFolderIdChanged: editMode = false
+    Binding {
+        target: root
+        property: "magnificationProgress"
+        value: root.magnificationEnabled && gridMagnification.hovered ? 1 : 0
+        restoreMode: Binding.RestoreNone
+    }
+    Behavior on magnificationProgress {
+        enabled: !SettingsData.reduceMotion && Theme.currentAnimationSpeed !== SettingsData.AnimationSpeed.None
+        NumberAnimation {
+            duration: gridMagnification.hovered ? Theme.shorterDuration : Theme.shortDuration
+            easing.type: gridMagnification.hovered ? Easing.OutCubic : Easing.InCubic
+        }
+    }
     onCurrentFolderChanged: {
         if (!currentFolder)
             close();
@@ -220,7 +284,7 @@ PanelWindow {
 
         // Width follows the dock iconSize and column count so more columns widen the
         // grid instead of shrinking cells.
-        width: Math.min(root.width - root.popupMargin * 2, Math.max(root.minPopupWidth, root.columns * root.slotPitch + root.popupPadding * 2))
+        width: Math.min(root.width - root.popupMargin * 2, root.basePopupWidth + root.magnificationExpansionWidth)
         height: menuColumn.implicitHeight + root.popupPadding + root.popupBottomPadding
         color: Theme.floatingSurface
         radius: Theme.windowRadius
@@ -436,10 +500,20 @@ PanelWindow {
             }
 
             Grid {
-                width: parent.width
+                id: folderGrid
+                width: root.baseGridWidth + root.magnificationExpansionWidth
+                height: root.baseGridHeight + root.magnificationExpansionHeight
+                implicitWidth: width
+                implicitHeight: height
+                anchors.horizontalCenter: parent.horizontalCenter
                 columns: root.columns
                 columnSpacing: root.spacing
                 rowSpacing: root.spacing
+
+                HoverHandler {
+                    id: gridMagnification
+                    enabled: root.magnificationEnabled
+                }
 
                 Repeater {
                     model: root.members
@@ -448,15 +522,19 @@ PanelWindow {
                         id: memberCell
 
                         required property var modelData
+                        required property int index
                         readonly property string appId: modelData
                         readonly property var entry: DesktopEntries.heuristicLookup(Paths.moddedAppId(appId))
                         readonly property bool running: root.memberToplevels(appId).length > 0
+                        readonly property int gridColumn: index % root.columns
+                        readonly property int gridRow: Math.floor(index / root.columns)
+                        readonly property real visualScale: root.magnificationScales[index] ?? 1
                         property bool longPressing: false
                         property bool dragging: false
                         property point dragStartPos: Qt.point(0, 0)
 
-                        width: root.cellWidth
-                        height: iconSlot.height + Theme.spacingXS + memberLabel.implicitHeight + Theme.spacingS
+                        width: root.cellWidth + (root.columnExpansions[gridColumn] ?? 0)
+                        height: root.cellHeight + (root.rowExpansions[gridRow] ?? 0)
 
                         Timer {
                             id: cellLongPress
@@ -473,9 +551,11 @@ PanelWindow {
                         }
 
                         Column {
+                            id: memberContent
                             anchors.centerIn: parent
                             spacing: Theme.spacingXS
                             opacity: memberCell.dragging ? 0.25 : 1
+                            scale: memberCell.visualScale
 
                             Behavior on opacity {
                                 NumberAnimation {
