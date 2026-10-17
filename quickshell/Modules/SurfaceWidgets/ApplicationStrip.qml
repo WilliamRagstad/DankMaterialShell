@@ -295,6 +295,13 @@ Item {
         if (folders)
             SessionData.setDockFolders(surfaceContext.configId, folders);
     }
+    function reorderFolderApps(folderId, fromIndex, toIndex) {
+        if (barHosted)
+            return;
+        const folders = ApplicationModel.reorderFolderApps(dockFolders, folderId, fromIndex, toIndex);
+        if (folders && folders !== dockFolders)
+            SessionData.setDockFolders(surfaceContext.configId, folders);
+    }
     // Dissolve spreads every member back as normal pins at the folder's position.
     function dissolveFolder(folderId) {
         if (barHosted || !folderId)

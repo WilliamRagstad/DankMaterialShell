@@ -153,6 +153,19 @@ function updateFolder(folders, folderId, patch) {
     });
 }
 
+function reorderFolderApps(folders, folderId, fromIndex, toIndex) {
+    const folder = folders[folderId];
+    if (!folder || !Array.isArray(folder.apps) || !Number.isInteger(fromIndex) || !Number.isInteger(toIndex) || fromIndex < 0 || fromIndex >= folder.apps.length || toIndex < 0 || toIndex >= folder.apps.length)
+        return null;
+    if (fromIndex === toIndex)
+        return folders;
+    const apps = folder.apps.slice();
+    apps.splice(toIndex, 0, apps.splice(fromIndex, 1)[0]);
+    return Object.assign({}, folders, {
+        [folderId]: Object.assign({}, folder, { apps })
+    });
+}
+
 function renameFolder(folders, folderId, name) {
     return updateFolder(folders, folderId, { name });
 }

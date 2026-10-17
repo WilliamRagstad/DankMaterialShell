@@ -50,7 +50,7 @@ PanelWindow {
     property real magnificationProgress: 0
     readonly property var magnificationScales: {
         const scales = Array(members.length).fill(1);
-        if (!magnificationEnabled || !gridMagnification.hovered || magnificationProgress <= 0.001)
+        if (!magnificationEnabled || magnificationProgress <= 0.001)
             return scales;
         const cursor = gridMagnification.point.position;
         for (let index = 0; index < members.length; index++) {
@@ -102,6 +102,58 @@ PanelWindow {
     property var anchorItem: null
     property var surfaceContext: null
     property real dockVisibleHeight: 40
+    property int reorderFrom: -1
+    property int reorderTo: -1
+
+    function previewSlotFor(index) {
+        if (reorderFrom < 0 || reorderTo < 0 || reorderFrom === reorderTo)
+            return index;
+        if (index === reorderFrom)
+            return reorderTo;
+        if (reorderFrom < reorderTo && index > reorderFrom && index <= reorderTo)
+            return index - 1;
+        if (reorderFrom > reorderTo && index >= reorderTo && index < reorderFrom)
+            return index + 1;
+        return index;
+    }
+
+    function cellX(column) {
+        let x = 0;
+        for (let index = 0; index < column; index++)
+            x += cellWidth + (columnExpansions[index] ?? 0) + spacing;
+        return x;
+    }
+
+    function cellY(row) {
+        let y = 0;
+        for (let index = 0; index < row; index++)
+            y += cellHeight + (rowExpansions[index] ?? 0) + spacing;
+        return y;
+    }
+
+    function folderSlotAt(point) {
+        if (members.length === 0 || point.x < 0 || point.y < 0 || point.x > folderGrid.width || point.y > folderGrid.height)
+            return -1;
+        let best = -1;
+        let bestDistance = Infinity;
+        for (let slot = 0; slot < members.length; slot++) {
+            const column = slot % columns;
+            const row = Math.floor(slot / columns);
+            const centerX = cellX(column) + (cellWidth + (columnExpansions[column] ?? 0)) / 2;
+            const centerY = cellY(row) + (cellHeight + (rowExpansions[row] ?? 0)) / 2;
+            const distance = Math.hypot(point.x - centerX, point.y - centerY);
+            if (distance < bestDistance) {
+                best = slot;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    function clearFolderReorder() {
+        reorderFrom = -1;
+        reorderTo = -1;
+    }
 
     WlrLayershell.namespace: root.layerNamespace
     WlrLayershell.layer: WlrLayershell.Overlay
@@ -179,6 +231,7 @@ PanelWindow {
             updatePosition();
             return;
         }
+        clearFolderReorder();
         anchorItem = null;
         surfaceContext = null;
         if (dockApps)
@@ -189,7 +242,7 @@ PanelWindow {
     Binding {
         target: root
         property: "magnificationProgress"
-        value: root.magnificationEnabled && gridMagnification.hovered ? 1 : 0
+        value: root.magnificationEnabled && gridMagnification.hovered && root.reorderFrom < 0 ? 1 : 0
         restoreMode: Binding.RestoreNone
     }
     Behavior on magnificationProgress {
@@ -499,20 +552,17 @@ PanelWindow {
                 visible: root.editMode
             }
 
-            Grid {
+            Item {
                 id: folderGrid
                 width: root.baseGridWidth + root.magnificationExpansionWidth
                 height: root.baseGridHeight + root.magnificationExpansionHeight
                 implicitWidth: width
                 implicitHeight: height
                 anchors.horizontalCenter: parent.horizontalCenter
-                columns: root.columns
-                columnSpacing: root.spacing
-                rowSpacing: root.spacing
 
                 HoverHandler {
                     id: gridMagnification
-                    enabled: root.magnificationEnabled
+                    enabled: root.magnificationEnabled && root.reorderFrom < 0
                 }
 
                 Repeater {
@@ -526,8 +576,9 @@ PanelWindow {
                         readonly property string appId: modelData
                         readonly property var entry: DesktopEntries.heuristicLookup(Paths.moddedAppId(appId))
                         readonly property bool running: root.memberToplevels(appId).length > 0
-                        readonly property int gridColumn: index % root.columns
-                        readonly property int gridRow: Math.floor(index / root.columns)
+                        readonly property int previewSlot: root.previewSlotFor(index)
+                        readonly property int gridColumn: previewSlot % root.columns
+                        readonly property int gridRow: Math.floor(previewSlot / root.columns)
                         readonly property real visualScale: root.magnificationScales[index] ?? 1
                         property bool longPressing: false
                         property bool dragging: false
@@ -535,6 +586,25 @@ PanelWindow {
 
                         width: root.cellWidth + (root.columnExpansions[gridColumn] ?? 0)
                         height: root.cellHeight + (root.rowExpansions[gridRow] ?? 0)
+                        x: root.cellX(gridColumn)
+                        y: root.cellY(gridRow)
+                        z: dragging ? 10 : 0
+
+                        Behavior on x {
+                            enabled: !SettingsData.reduceMotion && Theme.currentAnimationSpeed !== SettingsData.AnimationSpeed.None
+                            NumberAnimation {
+                                duration: Theme.shortDuration
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+
+                        Behavior on y {
+                            enabled: !SettingsData.reduceMotion && Theme.currentAnimationSpeed !== SettingsData.AnimationSpeed.None
+                            NumberAnimation {
+                                duration: Theme.shortDuration
+                                easing.type: Easing.OutCubic
+                            }
+                        }
 
                         Timer {
                             id: cellLongPress
@@ -639,12 +709,22 @@ PanelWindow {
                                     if (!memberCell.longPressing || Math.hypot(mouse.x - memberCell.dragStartPos.x, mouse.y - memberCell.dragStartPos.y) <= 10)
                                         return;
                                     memberCell.dragging = true;
+                                    root.reorderFrom = memberCell.index;
+                                    root.reorderTo = memberCell.index;
                                     const start = mapToItem(null, mouse.x, mouse.y);
                                     dragGhost.show(start.x, start.y, memberCell.appId, memberCell.entry);
                                 }
                                 cellLongPress.stop();
                                 const point = mapToItem(null, mouse.x, mouse.y);
                                 dragGhost.move(point.x, point.y);
+                                const folderPoint = memberArea.mapToItem(folderGrid, mouse.x, mouse.y);
+                                const folderSlot = root.folderSlotAt(folderPoint);
+                                if (folderSlot >= 0) {
+                                    root.reorderTo = folderSlot;
+                                    root.dockApps?.previewExternalDrop(-1);
+                                    return;
+                                }
+                                root.reorderTo = -1;
                                 // Dock items part under the ghost with the standard shift springs.
                                 const slot = root.dockApps?.nearestSlotToScreenPoint(point.x, point.y, Math.max(56, root.dockApps.targetSize * 0.9)) ?? -1;
                                 root.dockApps?.previewExternalDrop(slot);
@@ -652,16 +732,25 @@ PanelWindow {
                             onReleased: mouse => {
                                 cellLongPress.stop();
                                 const wasDragging = memberCell.dragging;
+                                const fromIndex = root.reorderFrom;
+                                const folderPoint = memberArea.mapToItem(folderGrid, mouse.x, mouse.y);
+                                const folderSlot = wasDragging ? root.folderSlotAt(folderPoint) : -1;
+                                const point = wasDragging ? mapToItem(null, mouse.x, mouse.y) : null;
+                                const dockSlot = wasDragging && folderSlot < 0 ? root.dockApps?.nearestSlotToScreenPoint(point.x, point.y, Math.max(56, root.dockApps.targetSize * 0.9)) ?? -1 : -1;
                                 memberCell.dragging = false;
                                 memberCell.longPressing = false;
                                 dragGhost.hide();
                                 if (wasDragging) {
-                                    const point = mapToItem(null, mouse.x, mouse.y);
-                                    const slot = root.dockApps?.nearestSlotToScreenPoint(point.x, point.y, Math.max(56, root.dockApps.targetSize * 0.9)) ?? -1;
+                                    root.clearFolderReorder();
                                     root.dockApps?.previewExternalDrop(-1);
-                                    if (slot < 0)
+                                    if (folderSlot >= 0) {
+                                        if (folderSlot !== fromIndex)
+                                            root.dockApps?.reorderFolderApps(root.folderId, fromIndex, folderSlot);
                                         return;
-                                    root.dockApps?.removeAppFromFolderToSlot(root.folderId, memberCell.appId, slot);
+                                    }
+                                    if (dockSlot < 0)
+                                        return;
+                                    root.dockApps?.removeAppFromFolderToSlot(root.folderId, memberCell.appId, dockSlot);
                                     root.close();
                                     return;
                                 }
@@ -673,6 +762,7 @@ PanelWindow {
                                 memberCell.dragging = false;
                                 memberCell.longPressing = false;
                                 dragGhost.hide();
+                                root.clearFolderReorder();
                                 root.dockApps?.previewExternalDrop(-1);
                             }
                             onClicked: mouse => {

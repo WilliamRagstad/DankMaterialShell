@@ -116,6 +116,21 @@ test("updateFolder patches folder records without touching others", () => {
     assert.equal(model.updateFolder(folders, "zz", { columns: 4 }), null);
 });
 
+test("reorderFolderApps moves members without mutating folder state", () => {
+    const folders = {
+        f1: { id: "f1", name: "Work", apps: ["a", "b", "c", "d"], columns: 3 },
+        f2: { id: "f2", name: "Play", apps: ["x", "y"] }
+    };
+    const result = model.reorderFolderApps(folders, "f1", 1, 3);
+    assert.deepEqual(plain(result.f1.apps), ["a", "c", "d", "b"]);
+    assert.equal(result.f1.name, "Work");
+    assert.deepEqual(plain(result.f2.apps), ["x", "y"]);
+    assert.deepEqual(plain(folders.f1.apps), ["a", "b", "c", "d"]);
+    assert.equal(model.reorderFolderApps(folders, "f1", 3, 3), folders);
+    assert.equal(model.reorderFolderApps(folders, "missing", 0, 1), null);
+    assert.equal(model.reorderFolderApps(folders, "f1", 0, 4), null);
+});
+
 test("dissolveFolder spreads members into the pin list at the token slot", () => {
     const pins = ["x", "folder:f1", "y"];
     const folders = { f1: { id: "f1", name: "F", apps: ["a", "b", "c"], columns: 3 } };
