@@ -6,6 +6,7 @@ import qs.Common
 import qs.Services
 import qs.Widgets
 import qs.DCommon.Widgets as DWidgets
+import qs.Modals.Common
 import "../../Common/settings/DockConfig.js" as DockConfig
 
 // Folder grid modal above the dock icon. Modeled on DockContextMenuBase but standalone:
@@ -193,6 +194,17 @@ PanelWindow {
         root.dockApps?.renameFolder(root.folderId, name);
     }
 
+    function requestDissolve() {
+        dissolveConfirmDialog.show(
+            I18n.tr("Dissolve folder?"),
+            I18n.tr("Apps in %1 will return to the dock as individual icons.").arg(currentFolder?.folderName ?? I18n.tr("Folder")),
+            () => {
+                root.dockApps?.dissolveFolder(root.folderId);
+                root.close();
+            }
+        );
+    }
+
     function close() {
         visible = false;
     }
@@ -236,6 +248,12 @@ PanelWindow {
         surfaceContext = null;
         if (dockApps)
             dockApps.requestDockShow = false;
+    }
+
+    ConfirmModal {
+        id: dissolveConfirmDialog
+        confirmButtonText: I18n.tr("Dissolve")
+        useOverlayLayer: true
     }
 
     onFolderIdChanged: editMode = false
@@ -536,10 +554,7 @@ PanelWindow {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                root.dockApps?.dissolveFolder(root.folderId);
-                                root.close();
-                            }
+                            onClicked: root.requestDissolve()
                         }
                     }
                 }
