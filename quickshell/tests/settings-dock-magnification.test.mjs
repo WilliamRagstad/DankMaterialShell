@@ -3,6 +3,7 @@ import test from "node:test";
 import { loadScript } from "./qml-script.mjs";
 
 const store = loadScript(new URL("../Common/settings/SettingsStore.js", import.meta.url));
+const dockConfig = loadScript(new URL("../Common/settings/DockConfig.js", import.meta.url));
 
 function migrate(dock, widget) {
     const settings = { configVersion: 41, dockConfigs: [Object.assign({ id: "dock", widgets: [Object.assign({ id: "dock_apps", widgetId: "appsDock" }, widget)] }, dock)] };
@@ -28,4 +29,15 @@ test("dock apps sizing folds into the dock and the widget copies are dropped", (
             assert.equal(migrated.iconSize, iconSize);
         assert.deepEqual(migrated.widgets, [{ id: "dock_apps", widgetId: "appsDock" }]);
     }
+});
+
+test("folder magnification defaults on for existing docks and stays configurable", () => {
+    const oldConfig = dockConfig.normalize([{ id: "dock", magnification: true }])[0];
+    assert.equal(oldConfig.folderMagnification, true);
+    assert.equal(oldConfig.folderMagnificationScale, 110);
+
+    const disabledConfig = dockConfig.normalize([{ id: "dock", folderMagnification: false, folderMagnificationScale: 125 }])[0];
+    assert.equal(disabledConfig.folderMagnification, false);
+    assert.equal(disabledConfig.folderMagnificationScale, 125);
+    assert.equal(dockConfig.normalize([{ id: "dock", folderMagnificationScale: 150 }])[0].folderMagnificationScale, 130);
 });

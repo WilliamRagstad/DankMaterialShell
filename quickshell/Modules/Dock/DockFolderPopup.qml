@@ -43,8 +43,8 @@ PanelWindow {
     readonly property real basePopupWidth: Math.max(minPopupWidth, baseGridWidth + popupPadding * 2)
     readonly property bool dockOutlineEnabled: dockApps?.options.borderEnabled === true && !(dockApps?.surfaceContext?.host?.usesConnectedFrameChrome ?? false)
     readonly property real dockOutlineWidth: Math.max(1, dockApps?.options.borderThickness ?? 1)
-    readonly property bool magnificationEnabled: dockApps?.options.magnification === true
-    readonly property real magnificationScale: Math.max(1.05, Math.min(2, (dockApps?.options.magnificationScale ?? 130) / 100))
+    readonly property bool magnificationEnabled: dockApps?.options.magnification === true && dockApps?.options.folderMagnification === true
+    readonly property real magnificationScale: Math.max(1, Math.min(1.3, (dockApps?.options.folderMagnificationScale ?? 110) / 100))
     readonly property string magnificationProfile: dockApps?.options.magnificationProfile ?? "parabolic"
     readonly property real magnificationRadius: DockConfig.magnificationRadius(dockIconSize, magnificationProfile)
     property real magnificationProgress: 0

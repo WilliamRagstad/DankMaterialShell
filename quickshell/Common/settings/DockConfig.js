@@ -55,6 +55,8 @@ function create(id, name) {
         trashFileManager: "default",
         trashCustomCommand: "",
         magnification: false,
+        folderMagnification: true,
+        folderMagnificationScale: 110,
         magnificationScale: 130,
         magnificationProfile: DEFAULT_MAGNIFICATION_PROFILE,
         magnificationExpand: false,
@@ -111,6 +113,7 @@ function normalize(configs) {
         for (const key of ["maxVisibleApps", "maxVisibleRunningApps"])
             result[key] = Math.floor(bounded(result[key], 0, 0, 100));
         result.magnificationScale = bounded(result.magnificationScale, defaults.magnificationScale, 105, 160);
+        result.folderMagnificationScale = bounded(result.folderMagnificationScale, defaults.folderMagnificationScale, 100, 130);
         result.magnificationProfile = MAGNIFICATION_PROFILES.includes(result.magnificationProfile) ? result.magnificationProfile : defaults.magnificationProfile;
         for (const key of Object.keys(defaults)) {
             if (typeof defaults[key] === "boolean")

@@ -133,6 +133,29 @@ Item {
                 checked: dock.config?.magnificationExpand ?? false
                 onToggled: checked => dock.setOption("magnificationExpand", checked)
             }
+
+            SettingsToggleRow {
+                settingKey: "dockFolderMagnification"
+                tags: ["dock", "folder", "zoom", "magnification", "apps"]
+                text: I18n.tr("Folder grid magnification", "dock setting: enlarge app icons inside folders on hover")
+                checked: dock.config?.folderMagnification ?? true
+                onToggled: checked => dock.setOption("folderMagnification", checked)
+            }
+
+            SettingsSliderRow {
+                settingKey: "dockFolderMagnificationScale"
+                tags: ["dock", "folder", "zoom", "magnification", "scale"]
+                resetStore: dock
+                resetKeys: ["folderMagnificationScale"]
+                text: I18n.tr("Folder scale", "dock setting: folder grid magnification scale")
+                value: dock.config?.folderMagnificationScale ?? 110
+                minimum: 100
+                maximum: 130
+                step: 5
+                unit: "%"
+                visible: dock.config?.folderMagnification ?? true
+                onSliderValueChanged: value => dock.setOption("folderMagnificationScale", value)
+            }
         }
 
         SettingsCard {
