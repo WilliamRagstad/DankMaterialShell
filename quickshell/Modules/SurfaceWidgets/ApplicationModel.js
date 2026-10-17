@@ -72,6 +72,15 @@ function dropMode(residual, slotPitch) {
     return Math.abs(residual) < 0.35 * slotPitch ? "merge" : "move";
 }
 
+function canMergePinItems(source, target, barHosted) {
+    if (barHosted || !source?.isPinned || !target?.isPinned || source.type === "folder")
+        return false;
+    const blocked = ["launcher", "separator", "overflow-toggle"];
+    if (blocked.includes(source.type) || blocked.includes(target.type))
+        return false;
+    return true;
+}
+
 // Strip slot -> pin list insertion point: pinned strip items map 1:1 onto the pin list order.
 function pinInsertIndex(items, slotIndex) {
     let count = 0;

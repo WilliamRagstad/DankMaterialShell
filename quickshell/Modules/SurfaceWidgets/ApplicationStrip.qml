@@ -323,12 +323,7 @@ Item {
         return null;
     }
     function canMergePinItems(source, target) {
-        if (barHosted || !source?.isPinned || !target?.isPinned)
-            return false;
-        const blocked = ["launcher", "separator", "overflow-toggle"];
-        if (blocked.includes(source.type) || blocked.includes(target.type))
-            return false;
-        return !(source.type === "folder" && target.type === "folder");
+        return ApplicationModel.canMergePinItems(source, target, barHosted);
     }
     function mergePinItems(source, target) {
         if (target.type === "folder")

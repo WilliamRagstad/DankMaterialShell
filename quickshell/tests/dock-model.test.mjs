@@ -27,6 +27,19 @@ test("pin reorder uses actual items around launcher and overflow boundaries", ()
         assert.equal(model.movePin(pins, items, from, to), pins);
 });
 
+test("folder drags reorder instead of merging into neighboring apps", () => {
+    const folder = { type: "folder", isPinned: true };
+    const app = { type: "pinned", isPinned: true };
+    const otherFolder = { type: "folder", isPinned: true };
+    assert.equal(model.canMergePinItems(folder, app, false), false);
+    assert.equal(model.canMergePinItems(app, folder, false), true);
+    assert.equal(model.canMergePinItems(folder, otherFolder, false), false);
+
+    const pins = ["a", "folder:f1", "b"];
+    const items = [app, folder, { type: "pinned", isPinned: true }];
+    assert.deepEqual(plain(model.movePin(pins, items, 1, 2)), ["a", "b", "folder:f1"]);
+});
+
 test("compositor window identity survives reorder and rejects null", () => {
     const service = readFileSync(new URL("../Services/CompositorService.qml", import.meta.url), "utf8");
     const code = service.slice(service.indexOf("    function windowKey("), service.indexOf("    function getFocusedScreenName("));
