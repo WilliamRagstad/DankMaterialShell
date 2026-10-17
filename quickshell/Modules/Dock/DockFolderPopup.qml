@@ -21,10 +21,29 @@ PanelWindow {
     readonly property int columns: Math.max(2, Math.min(6, currentFolder?.columns ?? 3))
     // Grid sizing follows the dock's own iconSize config so the popup scales with the dock.
     readonly property real dockIconSize: Math.max(24, dockApps?.iconSize ?? 42)
-    readonly property real spacing: Theme.spacingS
+    readonly property real dockPadding: Math.max(0, dockApps?.options.spacing ?? Theme.spacingM)
+    readonly property real popupPadding: Math.max(Theme.spacingS, dockPadding)
+    readonly property real popupBottomPadding: popupPadding + Theme.spacingS
+    readonly property real popupMargin: Math.max(Theme.spacingS, dockApps?.options.margin ?? 0)
+    readonly property real spacing: Math.max(0, dockApps?.options.itemSpacing ?? Theme.spacingS)
     readonly property real slotPitch: dockIconSize * 1.6 + spacing
-    readonly property real minPopupWidth: Math.max(280, columns >= 2 ? 2 * slotPitch + Theme.spacingM * 2 : slotPitch + Theme.spacingM * 2)
+    readonly property real minPopupWidth: Math.max(280, columns >= 2 ? 2 * slotPitch + popupPadding * 2 : slotPitch + popupPadding * 2)
     readonly property real cellWidth: Math.floor((menuColumn.width - spacing * (columns - 1)) / columns)
+    readonly property bool dockOutlineEnabled: dockApps?.options.borderEnabled === true && !(dockApps?.surfaceContext?.host?.usesConnectedFrameChrome ?? false)
+    readonly property real dockOutlineWidth: Math.max(1, dockApps?.options.borderThickness ?? 1)
+    readonly property color popupBorderColor: {
+        if (!dockOutlineEnabled)
+            return BlurService.borderColor;
+        const opacity = dockApps?.options.borderOpacity ?? 1;
+        switch (dockApps?.options.borderColor) {
+        case "secondary":
+            return Theme.withAlpha(Theme.secondary, opacity);
+        case "primary":
+            return Theme.withAlpha(Theme.primary, opacity);
+        default:
+            return Theme.withAlpha(Theme.surfaceText, opacity);
+        }
+    }
 
     property string layerNamespace: "dms:dock-folder-popup"
 
@@ -179,32 +198,34 @@ PanelWindow {
         readonly property bool isVertical: dockApps?.options.position === SettingsData.Position.Left || dockApps?.options.position === SettingsData.Position.Right
 
         x: {
+            const maxX = root.width - width - root.popupMargin;
             if (!isVertical) {
                 const want = root.anchorPos.x - width / 2;
-                return Math.max(10, Math.min(root.width - width - 10, want));
+                return Math.max(root.popupMargin, Math.min(maxX, want));
             }
             if (dockApps?.options.position === SettingsData.Position.Right)
-                return Math.max(10, root.anchorPos.x - width);
-            return Math.min(root.width - width - 10, root.anchorPos.x);
+                return Math.max(root.popupMargin, Math.min(maxX, root.anchorPos.x - width));
+            return Math.max(root.popupMargin, Math.min(maxX, root.anchorPos.x));
         }
         y: {
+            const maxY = root.height - height - root.popupMargin;
             if (isVertical) {
                 const want = root.anchorPos.y - height / 2;
-                return Math.max(10, Math.min(root.height - height - 10, want));
+                return Math.max(root.popupMargin, Math.min(maxY, want));
             }
             if (dockApps?.options.position === SettingsData.Position.Bottom)
-                return Math.max(10, root.anchorPos.y - height);
-            return Math.min(root.height - height - 10, root.anchorPos.y);
+                return Math.max(root.popupMargin, Math.min(maxY, root.anchorPos.y - height));
+            return Math.max(root.popupMargin, Math.min(maxY, root.anchorPos.y));
         }
 
         // Width follows the dock iconSize and column count so more columns widen the
         // grid instead of shrinking cells.
-        width: Math.min(root.width - 20, Math.max(root.minPopupWidth, root.columns * root.slotPitch + Theme.spacingM * 2))
-        height: menuColumn.implicitHeight + Theme.spacingS * 2
+        width: Math.min(root.width - root.popupMargin * 2, Math.max(root.minPopupWidth, root.columns * root.slotPitch + root.popupPadding * 2))
+        height: menuColumn.implicitHeight + root.popupPadding + root.popupBottomPadding
         color: Theme.floatingSurface
         radius: Theme.windowRadius
-        border.color: BlurService.borderColor
-        border.width: BlurService.borderWidth
+        border.color: root.popupBorderColor
+        border.width: root.dockOutlineEnabled ? root.dockOutlineWidth : BlurService.borderWidth
 
         opacity: root.visible ? 1 : 0
         visible: opacity > 0
@@ -238,10 +259,10 @@ PanelWindow {
 
         Column {
             id: menuColumn
-            width: parent.width - Theme.spacingM * 2
+            width: parent.width - root.popupPadding * 2
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
-            anchors.topMargin: Theme.spacingM
+            anchors.topMargin: root.popupPadding
             spacing: Theme.spacingS
 
             StyledText {
@@ -435,7 +456,7 @@ PanelWindow {
                         property point dragStartPos: Qt.point(0, 0)
 
                         width: root.cellWidth
-                        height: root.dockIconSize + Theme.fontSizeSmall + Theme.spacingXS + Theme.spacingS
+                        height: iconSlot.height + Theme.spacingXS + memberLabel.implicitHeight + Theme.spacingS
 
                         Timer {
                             id: cellLongPress
@@ -491,11 +512,14 @@ PanelWindow {
                             }
 
                             StyledText {
+                                id: memberLabel
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                width: root.cellWidth - Theme.spacingXS
+                                width: root.cellWidth - Theme.spacingXS * 2
                                 text: memberCell.entry?.name || memberCell.appId
                                 color: Theme.surfaceText
                                 font.pixelSize: Theme.fontSizeSmall
+                                wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                                maximumLineCount: 2
                                 elide: Text.ElideRight
                                 horizontalAlignment: Text.AlignHCenter
                             }
