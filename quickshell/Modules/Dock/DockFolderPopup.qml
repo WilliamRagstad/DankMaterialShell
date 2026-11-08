@@ -108,23 +108,22 @@ PanelWindow {
     property int reorderFrom: -1
     property int reorderTo: -1
     property bool closing: false
+    property bool pointerEnteredPopup: false
     property point pointerPosition: Qt.point(-1, -1)
 
-    function pointerInsidePopup(point) {
-        return point.x >= menuContainer.x - closeAcceptanceMargin
-            && point.x <= menuContainer.x + menuContainer.width + closeAcceptanceMargin
-            && point.y >= menuContainer.y - closeAcceptanceMargin
-            && point.y <= menuContainer.y + menuContainer.height + closeAcceptanceMargin;
+    function pointerInsidePopup(point, margin = closeAcceptanceMargin) {
+        return point.x >= menuContainer.x - margin
+            && point.x <= menuContainer.x + menuContainer.width + margin
+            && point.y >= menuContainer.y - margin
+            && point.y <= menuContainer.y + menuContainer.height + margin;
     }
 
     function pointerOverDock(point) {
         const strip = dockApps?.mixedStrip;
         if (!strip || strip.width <= 0 || strip.height <= 0)
             return false;
-        const topLeft = surfaceContext?.screenPoint(strip, 0, 0);
-        const bottomRight = surfaceContext?.screenPoint(strip, strip.width, strip.height);
-        if (!topLeft || !bottomRight)
-            return false;
+        const topLeft = root.contentItem.mapFromGlobal(strip.mapToGlobal(Qt.point(0, 0)));
+        const bottomRight = root.contentItem.mapFromGlobal(strip.mapToGlobal(Qt.point(strip.width, strip.height)));
         return point.x >= Math.min(topLeft.x, bottomRight.x) - dockAcceptanceMargin
             && point.x <= Math.max(topLeft.x, bottomRight.x) + dockAcceptanceMargin
             && point.y >= Math.min(topLeft.y, bottomRight.y) - dockAcceptanceMargin
@@ -134,6 +133,12 @@ PanelWindow {
     function updatePointerRegion(point) {
         pointerPosition = point;
         if (!visible || dissolveConfirmDialog.shouldBeVisible || reorderFrom >= 0) {
+            popupLeaveTimer.stop();
+            return;
+        }
+        if (pointerInsidePopup(point, 0))
+            pointerEnteredPopup = true;
+        if (!pointerEnteredPopup) {
             popupLeaveTimer.stop();
             return;
         }
@@ -204,6 +209,7 @@ PanelWindow {
         popupLeaveTimer.stop();
         closeAnimationTimer.stop();
         closing = false;
+        pointerEnteredPopup = false;
         if (dockScreen)
             screen = dockScreen;
         surfaceContext = button?.dockApps?.surfaceContext ?? null;
@@ -296,6 +302,7 @@ PanelWindow {
             return;
         }
         clearFolderReorder();
+        pointerEnteredPopup = false;
         anchorItem = null;
         surfaceContext = null;
         if (dockApps)
@@ -379,6 +386,8 @@ PanelWindow {
         onHoveredChanged: {
             if (hovered || !root.visible || dissolveConfirmDialog.shouldBeVisible || root.reorderFrom >= 0)
                 return;
+            if (!root.pointerEnteredPopup)
+                return;
             root.pointerPosition = Qt.point(-1, -1);
             popupLeaveTimer.restart();
         }
@@ -387,11 +396,11 @@ PanelWindow {
     // DockBody's reveal hold supplies the normal close delay after popup releases its dock hold.
     Timer {
         id: popupLeaveTimer
-        interval: 0
+        interval: Theme.shorterDuration
         repeat: false
         onTriggered: {
             const point = root.pointerPosition;
-            if (root.visible && !root.closing && !dissolveConfirmDialog.shouldBeVisible && root.reorderFrom < 0 && !root.pointerInsidePopup(point) && !root.pointerOverDock(point))
+            if (root.visible && !root.closing && root.pointerEnteredPopup && !dissolveConfirmDialog.shouldBeVisible && root.reorderFrom < 0 && !root.pointerInsidePopup(point) && !root.pointerOverDock(point))
                 root.close();
         }
     }
